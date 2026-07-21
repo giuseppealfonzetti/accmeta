@@ -38,7 +38,7 @@ fit_tlmm <- function(
     THETA_START <- init_theta(DATA)
   }
   stopifnot(is.numeric(THETA_START), length(THETA_START) == 9)
-  OBJ <- TMB::MakeADFun(
+  obj <- TMB::MakeADFun(
     data = list(
       EST = DATA$est,
       WVAR = DATA$wvar,
@@ -49,11 +49,11 @@ fit_tlmm <- function(
     DLL = "tlmm",
     silent = TRUE
   )
-  EST <- ucminf::ucminf(par = OBJ$par, fn = OBJ$fn, gr = OBJ$gr)
+  est <- ucminf::ucminf(par = obj$par, fn = obj$fn, gr = obj$gr)
   list(
-    THETA = unname(EST$par),
-    CONVERGENCE = EST$convergence,
-    NLL = EST$value,
-    OBJ = OBJ
+    THETA = unname(est$par),
+    CONVERGENCE = est$convergence,
+    NLL = est$value,
+    OBJ = obj
   )
 }
