@@ -11,8 +11,10 @@ LinkingTo:
     Rcpp,
     RcppEigen,
     TMB
-Imports: 
-    Rcpp, 
+Imports:
+    Rcpp,
+    statmod,
+    stats,
     TMB (>= 1.7.15),
     ucminf
 Config/testthat/edition: 3

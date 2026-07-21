@@ -61,3 +61,34 @@ list2theta <- function(LIST) {
   diag(L) <- log(diag(L))
   c(LIST$MU, L[lower.tri(L, diag = TRUE)][c(1, 2, 4, 3, 5, 6)])
 }
+
+#' Set the prior on the random-effects covariance
+#'
+#' Control the prior object for \eqn{\Sigma_3 \sim W(\nu, A I_3)} to be passed to [fit_tlmm()] or [fit_tglmm()] through the `PRIOR` argument. The prior is
+#' \eqn{\Sigma_3 \sim W(\nu, A I_3)}. Setting \eqn{\nu=4} and \eqn{A=Inf} correspond to maximum likelihood estimation.
+#'
+#' @param DEGREES Degrees of freedom \eqn{\nu} of the Wishart prior.
+#' @param SCALE Scale \eqn{A}. Represents a soft ceiling on the variance scale.
+#'
+#' @return An object of class `accmeta_prior`: a list with `DEGREES` and
+#'   `SCALE`, held as given and passed to the template unchanged.
+#'
+#' @examples
+#' set_prior()
+#' set_prior(DEGREES = 5, SCALE = 100)
+#'
+#' @export
+set_prior <- function(DEGREES = 4, SCALE = Inf) {
+  stopifnot(
+    is.numeric(DEGREES),
+    length(DEGREES) == 1,
+    DEGREES >= 4,
+    DEGREES == round(DEGREES),
+    is.numeric(SCALE),
+    length(SCALE) == 1,
+    SCALE > 0
+  )
+  out <- list(DEGREES = DEGREES, SCALE = SCALE)
+  class(out) <- "accmeta_prior"
+  return(out)
+}
