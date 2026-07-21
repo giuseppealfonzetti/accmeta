@@ -24,8 +24,9 @@ evaluated \code{N_NODES^3} times per study per likelihood evaluation.}
 
 \item{N_ITER}{Number of Newton steps used to locate the mode of the integrand.}
 
-\item{PRIOR}{Prior on \eqn{\Sigma_3}, as returned by \code{\link[=set_prior]{set_prior()}}. The
-default is unpenalised maximum likelihood.}
+\item{PRIOR}{Prior on \eqn{\Sigma_3}, as returned by \code{\link[=set_prior]{set_prior()}}. Under any
+prior but the flat one, \code{NLL} is a penalised objective rather than a
+log-likelihood.}
 
 \item{CONTROL}{List of control parameters passed to \code{\link[ucminf:ucminf]{ucminf::ucminf()}}; see
 its documentation for the accepted entries. The default raises \code{maxeval}

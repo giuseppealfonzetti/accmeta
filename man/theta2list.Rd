@@ -14,7 +14,8 @@ log-Cholesky factor of \eqn{\Sigma_3} in row-major lower-triangular order
 }
 \value{
 A list with two components: \code{MU}, the length-3 mean vector, and
-\code{SIGMA}, the 3x3 positive-definite covariance matrix.
+\code{SIGMA}, the 3x3 positive-definite covariance matrix. Both are named after
+the logit-scale components \code{eta}, \code{xi} and \code{gamma}.
 }
 \description{
 Maps the working parameter vector \code{THETA} onto its interpretable

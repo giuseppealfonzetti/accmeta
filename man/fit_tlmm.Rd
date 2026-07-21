@@ -17,8 +17,9 @@ fit_tlmm(
 \item{THETA_START}{Numeric vector of length 9 giving the starting value. If
 \code{NULL}, \code{\link[=init_theta]{init_theta()}} is used.}
 
-\item{PRIOR}{Prior on random effects covariance matrix, as returned by \code{\link[=set_prior]{set_prior()}}. The
-default is unpenalised maximum likelihood.}
+\item{PRIOR}{Prior on random effects covariance matrix, as returned by
+\code{\link[=set_prior]{set_prior()}}. Under any prior but the flat one, \code{NLL} is a penalised
+objective rather than a log-likelihood.}
 
 \item{CONTROL}{List of control parameters passed to \code{\link[ucminf:ucminf]{ucminf::ucminf()}}; see
 its documentation for the accepted entries.}

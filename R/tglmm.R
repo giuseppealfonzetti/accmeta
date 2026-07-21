@@ -10,8 +10,9 @@
 #' @param N_NODES Number of quadrature nodes per dimension. The integrand is
 #'   evaluated `N_NODES^3` times per study per likelihood evaluation.
 #' @param N_ITER Number of Newton steps used to locate the mode of the integrand.
-#' @param PRIOR Prior on \eqn{\Sigma_3}, as returned by [set_prior()]. The
-#'   default is unpenalised maximum likelihood.
+#' @param PRIOR Prior on \eqn{\Sigma_3}, as returned by [set_prior()]. Under any
+#'   prior but the flat one, `NLL` is a penalised objective rather than a
+#'   log-likelihood.
 #' @param CONTROL List of control parameters passed to [ucminf::ucminf()]; see
 #'   its documentation for the accepted entries. The default raises `maxeval`
 #'   above the ucminf default, which this likelihood exhausts before converging.
@@ -79,10 +80,12 @@ fit_tglmm <- function(
     gr = obj$gr,
     control = CONTROL
   )
-  list(
+  out <- list(
     THETA = unname(est$par),
     CONVERGENCE = est$convergence,
     NLL = est$value,
     OBJ = obj
   )
+  class(out) <- c("accmeta_tglmm", "accmeta_fit")
+  return(out)
 }

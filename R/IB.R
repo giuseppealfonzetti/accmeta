@@ -23,7 +23,7 @@
 #' The `PRIOR` and the continuity correction recorded on `DATA` reach \eqn{\hat\pi}
 #' and every simulated fit.
 #'
-#' Differently from [fit_tlmm()] and [fit_tglmm()], a penalised `PRIOR` is the default here.
+#' The default `PRIOR` is the one shared by [fit_tlmm()] and [fit_tglmm()].
 #'
 #' @return A list with components `THETA`, the bias-corrected estimate;
 #'   `PI_HAT`, the uncorrected TLMM estimate; `N_ITER`, the number of iterations
@@ -53,7 +53,7 @@ fit_ib <- function(
   MAX_ITER = 25,
   TOL = 0.2 / sqrt(H),
   STEP = 1,
-  PRIOR = set_prior(DEGREES = 5),
+  PRIOR = set_prior(),
   SEEDS = NULL
 ) {
   stopifnot(
@@ -170,7 +170,7 @@ fit_ib <- function(
     )
   }
 
-  list(
+  out <- list(
     THETA = path[k + 1, ],
     PI_HAT = pi_hat,
     N_ITER = k,
@@ -183,4 +183,6 @@ fit_ib <- function(
     DEGEN = degen[seq_len(k)],
     SEEDS = SEEDS
   )
+  class(out) <- c("accmeta_ib", "accmeta_fit")
+  return(out)
 }

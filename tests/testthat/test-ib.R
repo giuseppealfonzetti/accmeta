@@ -46,7 +46,7 @@ test_that("the result carries its path and diagnostics", {
   expect_length(f$PROGRESS, f$N_ITER)
   # the recursion starts uncorrected
   expect_equal(f$PATH[1, ], f$PI_HAT)
-  expect_equal(f$PI_HAT, fit_tlmm(d, PRIOR = set_prior(5))$THETA)
+  expect_equal(f$PI_HAT, fit_tlmm(d, PRIOR = set_prior())$THETA)
   expect_equal(f$THETA, f$PATH[nrow(f$PATH), ])
 })
 

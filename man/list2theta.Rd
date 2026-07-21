@@ -19,11 +19,12 @@ Inverse of \code{\link[=theta2list]{theta2list()}}: packs the random-effects mea
 matrix into the working parameter vector \code{THETA}.
 }
 \examples{
+nm <- c("eta", "xi", "gamma")
 li <- list(
-  MU = c(2.94, -2.2, -0.4),
+  MU = setNames(c(2.94, -2.2, -0.4), nm),
   SIGMA = matrix(c(1.21, 0.44, 0.33,
                    0.44, 0.52, 0.24,
-                   0.33, 0.24, 0.38), 3, 3)
+                   0.33, 0.24, 0.38), 3, 3, dimnames = list(nm, nm))
 )
 list2theta(li)
 all.equal(theta2list(list2theta(li)), li)

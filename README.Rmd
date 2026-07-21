@@ -17,40 +17,78 @@ knitr::opts_chunk$set(
 
 <!-- badges: start -->
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
-[![CRAN status](https://www.r-pkg.org/badges/version/accmeta)](https://CRAN.R-project.org/package=accmeta)
 <!-- badges: end -->
 
-The goal of accmeta is to ...
-
-## Installation
-
-You can install the development version of accmeta like so:
-
-``` r
-# FILL THIS IN! HOW CAN PEOPLE INSTALL YOUR DEV PACKAGE?
-```
+Meta-analysis of diagnostic accuracy, in terms of sensitivity, specificity and
+prevalence. Three estimators are available: a trivariate linear mixed model
+(TLMM) using a within-study normal approximation, the trivariate
+generalized linear mixed model (TGLMM), and an iterative bootstrap that corrects
+the bias of the TLMM by simulating from the TGLMM.
 
 ## Example
 
-This is a basic example which shows you how to solve a common problem:
+Setup true parameter value
 
-```{r example}
+```{r truepar}
 library(accmeta)
-## basic example code
+
+th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
+theta2list(th)
+
 ```
 
-What is special about using `README.Rmd` instead of just `README.md`? You can include R chunks like so:
+Simulate data from true model
 
-```{r cars}
-summary(cars)
+```{r data}
+set.seed(1)
+x <- sim_data(15, th, sample(40:200, 15, TRUE))
+head(x)
 ```
 
-You'll still need to render `README.Rmd` regularly, to keep `README.md` up-to-date. `devtools::build_readme()` is handy for this.
+Counts go in through `set_meta_data()`, which checks them and computes the
+summaries the models need. 
 
-You can also embed plots, for example:
-
-```{r pressure, echo = FALSE}
-plot(pressure)
+```{r meta}
+d <- set_meta_data(x)
+d
 ```
 
-In that case, don't forget to commit and push the resulting figure files, so they display on GitHub and CRAN.
+A continuity correction is needed by the approximate
+model whenever a cell is empty. You can use the CC argument:
+
+```{r}
+d_cc <- set_meta_data(x, CC = 0.5)
+d_cc
+```
+
+
+Now we can fit the models. Note that the TGLMM can be directly fitted on the original data.
+
+```{r fits}
+tlmm <- fit_tlmm(d_cc)
+tglmm <- fit_tglmm(d)
+ib <- fit_ib(d_cc)
+ib
+```
+
+`coef()` extract estimated parameters:
+
+```{r coef}
+coef(tlmm)
+coef(tglmm)
+coef(ib)
+
+```
+
+Raw estimates:
+```{r compare}
+
+# raw estimates
+res <- rbind(
+  truth = th, 
+  TLMM = tlmm$THETA, 
+  TGLMM = tglmm$THETA, 
+  IB = ib$THETA)
+res
+
+```

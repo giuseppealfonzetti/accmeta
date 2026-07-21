@@ -9,7 +9,8 @@
 #'   \eqn{(log(L_{11}), L_{21}, log(L_{22}), L_{31}, L_{32}, log(L_{33})}).
 #'
 #' @return A list with two components: `MU`, the length-3 mean vector, and
-#'   `SIGMA`, the 3x3 positive-definite covariance matrix.
+#'   `SIGMA`, the 3x3 positive-definite covariance matrix. Both are named after
+#'   the logit-scale components `eta`, `xi` and `gamma`.
 #'
 #' @seealso [list2theta()] for the inverse map.
 #'
@@ -19,10 +20,15 @@
 #' @export
 theta2list <- function(THETA) {
   stopifnot(is.numeric(THETA), length(THETA) == 9)
+  nm <- c("eta", "xi", "gamma")
   L <- matrix(0, 3, 3)
   L[lower.tri(L, diag = TRUE)] <- THETA[c(4, 5, 7, 6, 8, 9)]
   diag(L) <- exp(diag(L))
-  list(MU = THETA[1:3], SIGMA = tcrossprod(L))
+  mu <- THETA[1:3]
+  names(mu) <- nm
+  sigma <- tcrossprod(L)
+  dimnames(sigma) <- list(nm, nm)
+  list(MU = mu, SIGMA = sigma)
 }
 
 
@@ -40,11 +46,12 @@ theta2list <- function(THETA) {
 #' @seealso [theta2list()] for the inverse map.
 #'
 #' @examples
+#' nm <- c("eta", "xi", "gamma")
 #' li <- list(
-#'   MU = c(2.94, -2.2, -0.4),
+#'   MU = setNames(c(2.94, -2.2, -0.4), nm),
 #'   SIGMA = matrix(c(1.21, 0.44, 0.33,
 #'                    0.44, 0.52, 0.24,
-#'                    0.33, 0.24, 0.38), 3, 3)
+#'                    0.33, 0.24, 0.38), 3, 3, dimnames = list(nm, nm))
 #' )
 #' list2theta(li)
 #' all.equal(theta2list(list2theta(li)), li)
@@ -59,7 +66,8 @@ list2theta <- function(LIST) {
   )
   L <- t(chol(LIST$SIGMA))
   diag(L) <- log(diag(L))
-  c(LIST$MU, L[lower.tri(L, diag = TRUE)][c(1, 2, 4, 3, 5, 6)])
+  # THETA carries no names
+  unname(c(LIST$MU, L[lower.tri(L, diag = TRUE)][c(1, 2, 4, 3, 5, 6)]))
 }
 
 #' Set the prior on the random-effects covariance
@@ -67,7 +75,10 @@ list2theta <- function(LIST) {
 #' Control the prior object for \eqn{\Sigma_3 \sim W(\nu, A I_3)} to be passed to [fit_tlmm()] or [fit_tglmm()] through the `PRIOR` argument. The prior is
 #' \eqn{\Sigma_3 \sim W(\nu, A I_3)}. Setting \eqn{\nu=4} and \eqn{A=Inf} correspond to maximum likelihood estimation.
 #'
-#' @param DEGREES Degrees of freedom \eqn{\nu} of the Wishart prior.
+#' @param DEGREES Degrees of freedom \eqn{\nu} of the Wishart prior. The default
+#'   keeps the covariance off the boundary of the parameter space, which the
+#'   unpenalised fit reaches on small or sparse data. Use `set_prior(4)` for the
+#'   flat prior.
 #' @param SCALE Scale \eqn{A}. Represents a soft ceiling on the variance scale.
 #'
 #' @return An object of class `accmeta_prior`: a list with `DEGREES` and
@@ -75,10 +86,11 @@ list2theta <- function(LIST) {
 #'
 #' @examples
 #' set_prior()
+#' set_prior(DEGREES = 4)
 #' set_prior(DEGREES = 5, SCALE = 100)
 #'
 #' @export
-set_prior <- function(DEGREES = 4, SCALE = Inf) {
+set_prior <- function(DEGREES = 5, SCALE = Inf) {
   stopifnot(
     is.numeric(DEGREES),
     length(DEGREES) == 1,

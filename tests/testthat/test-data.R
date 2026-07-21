@@ -159,3 +159,13 @@ test_that("print returns its argument", {
   expect_output(out <- print(d), "accmeta_data")
   expect_identical(out, d)
 })
+
+test_that("theta2list names its components", {
+  p <- theta2list(th)
+  nm <- c("eta", "xi", "gamma")
+  expect_named(p$MU, nm)
+  expect_identical(dimnames(p$SIGMA), list(nm, nm))
+  # the working vector stays bare
+  expect_null(names(list2theta(p)))
+  expect_equal(list2theta(p), th)
+})

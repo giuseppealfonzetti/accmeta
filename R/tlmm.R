@@ -6,8 +6,9 @@
 #' @param DATA An `accmeta_data` object, as returned by [set_meta_data()].
 #' @param THETA_START Numeric vector of length 9 giving the starting value. If
 #'   `NULL`, [init_theta()] is used.
-#' @param PRIOR Prior on random effects covariance matrix, as returned by [set_prior()]. The
-#'   default is unpenalised maximum likelihood.
+#' @param PRIOR Prior on random effects covariance matrix, as returned by
+#'   [set_prior()]. Under any prior but the flat one, `NLL` is a penalised
+#'   objective rather than a log-likelihood.
 #' @param CONTROL List of control parameters passed to [ucminf::ucminf()]; see
 #'   its documentation for the accepted entries.
 #'
@@ -56,10 +57,12 @@ fit_tlmm <- function(
     gr = obj$gr,
     control = CONTROL
   )
-  list(
+  out <- list(
     THETA = unname(est$par),
     CONVERGENCE = est$convergence,
     NLL = est$value,
     OBJ = obj
   )
+  class(out) <- c("accmeta_tlmm", "accmeta_fit")
+  return(out)
 }

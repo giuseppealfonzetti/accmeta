@@ -185,25 +185,3 @@ set_meta_data <- function(MATRIX, CC = 0) {
   class(out) <- "accmeta_data"
   return(out)
 }
-
-
-#' @param x An `accmeta_data` object.
-#' @param ... Ignored.
-#'
-#' @rdname set_meta_data
-#' @export
-print.accmeta_data <- function(x, ...) {
-  cat(
-    "<accmeta_data>",
-    x$n_studies,
-    if (x$n_studies == 1) "study," else "studies,",
-    "continuity correction",
-    format(x$CC),
-    "\n"
-  )
-  s <- cbind(x$rates, n = x$margins[, "n"])
-  print(apply(s, 2, function(z) {
-    c(min = min(z), median = stats::median(z), max = max(z))
-  }))
-  invisible(x)
-}

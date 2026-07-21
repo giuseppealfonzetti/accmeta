@@ -9,7 +9,8 @@ far <- matrix(
 test_that("the mode is found for a far study", {
   d <- set_meta_data(far)
   obj <- fit_tglmm(
-    d, THETA_START = th, N_NODES = 15L, CONTROL = list(maxeval = 1)
+    d, THETA_START = th, N_NODES = 15L, PRIOR = set_prior(4),
+    CONTROL = list(maxeval = 1)
   )$OBJ
   # value from importance sampling
   expect_equal(obj$fn(th), 355.1859, tolerance = 1e-5)
@@ -45,8 +46,9 @@ test_that("the prior adds exactly the Wishart terms", {
   set.seed(1)
   d <- suppressMessages(set_meta_data(sim_data(5, th, rep(100, 5))))
   S <- theta2list(th)$SIGMA
+  # the baseline must be flat
   flat <- fit_tglmm(
-    d, THETA_START = th, N_NODES = 15L, PRIOR = set_prior(),
+    d, THETA_START = th, N_NODES = 15L, PRIOR = set_prior(4, Inf),
     CONTROL = list(maxeval = 1)
   )$OBJ$fn(th)
   scaled <- fit_tglmm(
@@ -66,7 +68,7 @@ test_that("the prior adds exactly the Wishart terms", {
 test_that("fit_tlmm reproduces its recorded fit", {
   set.seed(1)
   d <- set_meta_data(sim_data(50, th, rep(100, 50)), CC = 0.5)
-  f <- fit_tlmm(d)
+  f <- fit_tlmm(d, PRIOR = set_prior(4))
   expect_equal(f$NLL, 157.105, tolerance = 1e-5)
   expect_equal(f$THETA[1:3], c(2.48487, -1.91188, -0.37203), tolerance = 1e-4)
   expect_lt(max(abs(as.numeric(f$OBJ$gr(f$THETA)))), 1e-4)

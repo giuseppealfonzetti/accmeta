@@ -10,7 +10,7 @@ fit_ib(
   MAX_ITER = 25,
   TOL = 0.2/sqrt(H),
   STEP = 1,
-  PRIOR = set_prior(DEGREES = 5),
+  PRIOR = set_prior(),
   SEEDS = NULL
 )
 }
@@ -59,7 +59,7 @@ iteration. The state of the random number generator is restored on exit.
 The \code{PRIOR} and the continuity correction recorded on \code{DATA} reach \eqn{\hat\pi}
 and every simulated fit.
 
-Differently from \code{\link[=fit_tlmm]{fit_tlmm()}} and \code{\link[=fit_tglmm]{fit_tglmm()}}, a penalised \code{PRIOR} is the default here.
+The default \code{PRIOR} is the one shared by \code{\link[=fit_tlmm]{fit_tlmm()}} and \code{\link[=fit_tglmm]{fit_tglmm()}}.
 }
 \examples{
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)

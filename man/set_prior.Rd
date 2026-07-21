@@ -4,10 +4,13 @@
 \alias{set_prior}
 \title{Set the prior on the random-effects covariance}
 \usage{
-set_prior(DEGREES = 4, SCALE = Inf)
+set_prior(DEGREES = 5, SCALE = Inf)
 }
 \arguments{
-\item{DEGREES}{Degrees of freedom \eqn{\nu} of the Wishart prior.}
+\item{DEGREES}{Degrees of freedom \eqn{\nu} of the Wishart prior. The default
+keeps the covariance off the boundary of the parameter space, which the
+unpenalised fit reaches on small or sparse data. Use \code{set_prior(4)} for the
+flat prior.}
 
 \item{SCALE}{Scale \eqn{A}. Represents a soft ceiling on the variance scale.}
 }
@@ -21,6 +24,7 @@ Control the prior object for \eqn{\Sigma_3 \sim W(\nu, A I_3)} to be passed to \
 }
 \examples{
 set_prior()
+set_prior(DEGREES = 4)
 set_prior(DEGREES = 5, SCALE = 100)
 
 }
