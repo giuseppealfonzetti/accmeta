@@ -8,6 +8,8 @@
 #'   `NULL`, [init_theta()] is used.
 #' @param PRIOR Prior on random effects covariance matrix, as returned by [set_prior()]. The
 #'   default is unpenalised maximum likelihood.
+#' @param CONTROL List of control parameters passed to [ucminf::ucminf()]; see
+#'   its documentation for the accepted entries.
 #'
 #' @return A list with components `THETA`, the fitted parameter vector in the
 #'   layout documented for [theta2list()]; `CONVERGENCE`, the optimiser
@@ -15,18 +17,16 @@
 #'   `OBJ`, the TMB object, retained for [TMB::sdreport()].
 #'
 #' @examples
-#' \dontrun{
-#' load_templates()
 #' th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
 #' set.seed(1)
 #' fit_tlmm(set_meta_data(sim_data(50, th, rep(100, 50)), CC = 0.5))$THETA
-#' }
 #'
 #' @export
 fit_tlmm <- function(
   DATA,
   THETA_START = NULL,
-  PRIOR = set_prior()
+  PRIOR = set_prior(),
+  CONTROL = list(maxeval = 1000)
 ) {
   stopifnot(
     inherits(DATA, "accmeta_data"),
@@ -40,16 +40,22 @@ fit_tlmm <- function(
   stopifnot(is.numeric(THETA_START), length(THETA_START) == 9)
   obj <- TMB::MakeADFun(
     data = list(
+      MODEL = "tlmm",
       EST = DATA$est,
       WVAR = DATA$wvar,
       DEGREES = as.numeric(PRIOR$DEGREES),
       SCALE = as.numeric(PRIOR$SCALE)
     ),
     parameters = list(MU = THETA_START[1:3], ALPHA = THETA_START[4:9]),
-    DLL = "tlmm",
+    DLL = "accmeta",
     silent = TRUE
   )
-  est <- ucminf::ucminf(par = obj$par, fn = obj$fn, gr = obj$gr)
+  est <- ucminf::ucminf(
+    par = obj$par,
+    fn = obj$fn,
+    gr = obj$gr,
+    control = CONTROL
+  )
   list(
     THETA = unname(est$par),
     CONVERGENCE = est$convergence,

@@ -4,7 +4,12 @@
 \alias{fit_tlmm}
 \title{Fit the asymptotic normal approximation model}
 \usage{
-fit_tlmm(DATA, THETA_START = NULL, PRIOR = set_prior())
+fit_tlmm(
+  DATA,
+  THETA_START = NULL,
+  PRIOR = set_prior(),
+  CONTROL = list(maxeval = 1000)
+)
 }
 \arguments{
 \item{DATA}{An \code{accmeta_data} object, as returned by \code{\link[=set_meta_data]{set_meta_data()}}.}
@@ -14,6 +19,9 @@ fit_tlmm(DATA, THETA_START = NULL, PRIOR = set_prior())
 
 \item{PRIOR}{Prior on random effects covariance matrix, as returned by \code{\link[=set_prior]{set_prior()}}. The
 default is unpenalised maximum likelihood.}
+
+\item{CONTROL}{List of control parameters passed to \code{\link[ucminf:ucminf]{ucminf::ucminf()}}; see
+its documentation for the accepted entries.}
 }
 \value{
 A list with components \code{THETA}, the fitted parameter vector in the
@@ -26,11 +34,8 @@ Trivariate linear mixed model. A within-study normal approximation
 makes the likelihood available in closed form.
 }
 \examples{
-\dontrun{
-load_templates()
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
 set.seed(1)
 fit_tlmm(set_meta_data(sim_data(50, th, rep(100, 50)), CC = 0.5))$THETA
-}
 
 }

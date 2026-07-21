@@ -9,26 +9,27 @@ fit_tglmm(
   THETA_START = NULL,
   N_NODES = 15L,
   N_ITER = 10L,
-  PRIOR = set_prior()
+  PRIOR = set_prior(),
+  CONTROL = list(maxeval = 1000)
 )
 }
 \arguments{
-\item{DATA}{An \code{accmeta_data} object, as returned by \code{\link[=set_meta_data]{set_meta_data()}}. Its
-\code{counts} block holds the raw binomial responses and denominators this model
-requires; the continuity correction recorded on the object is not used here.}
+\item{DATA}{An \code{accmeta_data} object, as returned by \code{\link[=set_meta_data]{set_meta_data()}}.}
 
 \item{THETA_START}{Numeric vector of length 9 giving the starting value. If
-\code{NULL}, \code{\link[=init_theta]{init_theta()}} is used, which applies its own continuity correction
-to the raw counts for that purpose alone.}
+\code{NULL}, \code{\link[=init_theta]{init_theta()}} is used.}
 
 \item{N_NODES}{Number of quadrature nodes per dimension. The integrand is
-evaluated \code{N_NODES^3} times per study per likelihood evaluation, so the cost
-grows quickly.}
+evaluated \code{N_NODES^3} times per study per likelihood evaluation.}
 
 \item{N_ITER}{Number of Newton steps used to locate the mode of the integrand.}
 
 \item{PRIOR}{Prior on \eqn{\Sigma_3}, as returned by \code{\link[=set_prior]{set_prior()}}. The
 default is unpenalised maximum likelihood.}
+
+\item{CONTROL}{List of control parameters passed to \code{\link[ucminf:ucminf]{ucminf::ucminf()}}; see
+its documentation for the accepted entries. The default raises \code{maxeval}
+above the ucminf default, which this likelihood exhausts before converging.}
 }
 \value{
 A list with components \code{THETA}, the fitted parameter vector in the
@@ -37,22 +38,16 @@ convergence code; \code{NLL}, the negative log-likelihood at the optimum; and
 \code{OBJ}, the TMB object, retained for \code{\link[TMB:sdreport]{TMB::sdreport()}}.
 }
 \description{
-Fits the trivariate generalized linear mixed model by maximum likelihood. The
+Trivariate generalized linear mixed model. The
 likelihood has no closed form, so each study contributes a trivariate integral
-evaluated by adaptive Gauss-Hermite quadrature: the mode of the integrand is
-located by a fixed number of Newton steps, and the nodes are placed around it.
-No continuity correction is needed, the binomial responses being modelled
-exactly.
+evaluated by adaptive Gauss-Hermite quadrature.
 }
 \examples{
 \dontrun{
-load_templates()
+# N_NODES^3 integrand evaluations per study per likelihood call
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
 set.seed(1)
 fit_tglmm(set_meta_data(sim_data(15, th, rep(100, 15))))$THETA
 }
 
-}
-\seealso{
-\code{\link[=fit_tlmm]{fit_tlmm()}}, \code{\link[=set_meta_data]{set_meta_data()}}, \code{\link[=set_prior]{set_prior()}}, \code{\link[=load_templates]{load_templates()}}.
 }

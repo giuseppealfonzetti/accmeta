@@ -7,12 +7,10 @@ Description: Meta-analysis of diagnostic accuracy in terms of sensitivity, speci
 License: MIT + file LICENSE
 Suggests: 
     testthat (>= 3.0.0)
-LinkingTo: 
-    Rcpp,
+LinkingTo:
     RcppEigen,
     TMB
 Imports:
-    Rcpp,
     statmod,
     stats,
     TMB (>= 1.7.15),

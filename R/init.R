@@ -37,13 +37,13 @@ init_theta <- function(DATA, CC = 0.5, MIN_VAR = 1e-4, SHRINK = 0.5) {
     is.numeric(SHRINK),
     SHRINK >= 0
   )
-  # recreate data object with ad-hoc CC
+  # rebuild with own correction
   dat <- set_meta_data(DATA$tab, CC = CC)
   stopifnot(is.finite(dat$est))
   est <- dat$est
   wvar <- dat$wvar
 
-  # moment-based eestimates
+  # moment-based estimates
   S <- stats::cov(est) - SHRINK * diag(colMeans(wvar), 3, 3)
   S <- (S + t(S)) / 2
   eig <- eigen(S, symmetric = TRUE)
