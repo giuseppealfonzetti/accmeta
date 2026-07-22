@@ -37,15 +37,17 @@ test_that("the result carries its path and diagnostics", {
   f <- fit_ib(d, H = 10, MAX_ITER = 3, SEEDS = 1:10)
   expect_named(f, c(
     "THETA", "PI_HAT", "N_ITER", "CONVERGED", "STOP", "RESIDUAL",
-    "PROGRESS", "PATH", "FAIL", "DEGEN", "SEEDS"
+    "PROGRESS", "PATH", "FAIL", "DEGEN", "HALVED", "SEEDS"
   ))
   expect_length(f$THETA, 9)
   expect_identical(nrow(f$PATH), f$N_ITER + 1L)
   expect_length(f$FAIL, f$N_ITER)
   expect_length(f$DEGEN, f$N_ITER)
   expect_length(f$PROGRESS, f$N_ITER)
-  # the recursion starts uncorrected
+  expect_length(f$HALVED, f$N_ITER)
+  # a healthy start is not projected
   expect_equal(f$PATH[1, ], f$PI_HAT)
+  expect_identical(sum(f$HALVED), 0L)
   expect_equal(f$PI_HAT, fit_tlmm(d, PRIOR = set_prior())$THETA)
   expect_equal(f$THETA, f$PATH[nrow(f$PATH), ])
 })
@@ -95,4 +97,54 @@ test_that("the correction moves the estimate", {
   expect_identical(sum(f$FAIL), 0L)
   # penalty keeps fits interior
   expect_lt(max(f$DEGEN), 0.5)
+})
+
+test_that("a boundary start is projected inward", {
+  sd_true <- sqrt(c(1.2, 0.5, 0.25))
+  cor_true <- matrix(c(1, -0.6, 0.7, -0.6, 1, -0.7, 0.7, -0.7, 1), 3, 3)
+  tv <- list2theta(list(
+    MU = c(2.94, -2.20, -0.405),
+    SIGMA = diag(sd_true) %*% cor_true %*% diag(sd_true)
+  ))
+  set.seed(123)
+  ss <- sample(40:200, 15, TRUE)
+  set.seed(15)
+  d <- set_meta_data(sim_data(15, tv, ss), CC = 0.5)
+
+  flat <- fit_tlmm(d, PRIOR = set_prior(4))$THETA
+  ev <- eigen(theta2list(flat)$SIGMA, symmetric = TRUE, only.values = TRUE)$values
+  # the auxiliary sits on the boundary
+  expect_lt(min(ev), 1e-4)
+
+  f <- suppressWarnings(
+    fit_ib(d, H = 10, MAX_ITER = 3, PRIOR = set_prior(4), SEEDS = 1:10)
+  )
+  expect_true(all(is.finite(f$THETA)))
+  expect_equal(f$PI_HAT, flat)
+  # the start is moved, the target is not
+  expect_false(isTRUE(all.equal(f$PATH[1, ], f$PI_HAT)))
+  start_ev <- eigen(
+    theta2list(f$PATH[1, ])$SIGMA,
+    symmetric = TRUE, only.values = TRUE
+  )$values
+  expect_gte(min(start_ev), 1e-4)
+})
+
+test_that("a runaway update is halved instead of crashing", {
+  sd_true <- sqrt(c(1.2, 0.5, 0.25))
+  cor_true <- matrix(c(1, -0.6, 0.7, -0.6, 1, -0.7, 0.7, -0.7, 1), 3, 3)
+  tv <- list2theta(list(
+    MU = c(2.94, -2.20, -0.405),
+    SIGMA = diag(sd_true) %*% cor_true %*% diag(sd_true)
+  ))
+  set.seed(123)
+  ss <- sample(40:200, 15, TRUE)
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, tv, ss), CC = 0.5)
+  f <- suppressWarnings(
+    fit_ib(d, H = 20, MAX_ITER = 6, PRIOR = set_prior(4), SEEDS = 1:20)
+  )
+  expect_true(all(is.finite(f$THETA)))
+  expect_gt(sum(f$HALVED), 0)
+  expect_true(f$STOP %in% c("tol", "plateau", "maxit", "singular"))
 })

@@ -55,6 +55,7 @@ sim_data <- function(N_STUDIES, THETA, N_I) {
 #'   If they are unnamed, that order is assumed.
 #' @param CC Non-negative continuity correction, added to each of the four cells
 #'   of every study. Needed by [fit_tlmm()] when zero cells are observed.
+#' @param VERBOSE allow messages.
 #'
 #' @return An object of class `accmeta_data`, a list with components:
 #'   \describe{
@@ -85,7 +86,7 @@ sim_data <- function(N_STUDIES, THETA, N_I) {
 #' cbind(d$est[, "eta"], set_meta_data(x, CC = 0.5)$est[, "eta"])
 #'
 #' @export
-set_meta_data <- function(MATRIX, CC = 0) {
+set_meta_data <- function(MATRIX, CC = 0, VERBOSE = TRUE) {
   stopifnot(
     is.matrix(MATRIX) || is.data.frame(MATRIX),
     is.numeric(CC),
@@ -142,7 +143,7 @@ set_meta_data <- function(MATRIX, CC = 0) {
   y <- cbind(m[, "n11"], m[, "n10"], c1)
   den <- cbind(c1, c0, c1 + c0)
   empty <- which(rowSums(y == 0 | y == den) > 0)
-  if (length(empty) > 0) {
+  if (length(empty) > 0 & VERBOSE) {
     lab <- if (is.null(rownames(tab))) empty else rownames(tab)[empty]
     message(
       "empty cell in stud",

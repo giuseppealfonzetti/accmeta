@@ -28,13 +28,14 @@
 #' @return A list with components `THETA`, the bias-corrected estimate;
 #'   `PI_HAT`, the uncorrected TLMM estimate; `N_ITER`, the number of iterations
 #'   used; `CONVERGED`, whether the tolerance was met; `STOP`, which rule ended
-#'   the recursion, one of `"tol"`, `"plateau"` or
-#'   `"maxit"`; `RESIDUAL`, the largest absolute departure from the matching
+#'   the recursion, one of `"tol"`, `"plateau"`, `"maxit"` or `"singular"`;
+#'   `RESIDUAL`, the largest absolute departure from the matching
 #'   equation at the last iteration; `PROGRESS`, that departure at every
 #'   iteration; `PATH`, the iterates, one row per step; `FAIL`, the number of
 #'   simulated fits that failed every retry, per iteration; `DEGEN`, the
 #'   proportion of the `H` simulated fits whose \eqn{\Sigma_3} was degenerate,
-#'   per iteration; and `SEEDS`.
+#'   per iteration; `HALVED`, the number of step halvings per iteration; and
+#'   `SEEDS`.
 #'
 #' @seealso [fit_tlmm()] for the auxiliary estimator and [set_prior()] for the
 #'   prior specification.
@@ -56,6 +57,8 @@ fit_ib <- function(
   PRIOR = set_prior(),
   SEEDS = NULL
 ) {
+  min_var <- 1e-4
+
   stopifnot(
     inherits(DATA, "accmeta_data"),
     is.matrix(DATA$tab),
@@ -95,15 +98,29 @@ fit_ib <- function(
   pi_hat <- fit_tlmm(DATA, PRIOR = PRIOR)$THETA
 
   theta <- pi_hat
+  # bound starting Sigma
+  eig <- eigen(theta2list(theta)$SIGMA, symmetric = TRUE)
+  if (min(eig$values) < min_var) {
+    S <- eig$vectors %*%
+      diag(pmax(eig$values, min_var), 3, 3) %*%
+      t(eig$vectors)
+    theta <- list2theta(list(
+      MU = theta2list(theta)$MU,
+      SIGMA = (S + t(S)) / 2
+    ))
+  }
+
   path <- matrix(NA, MAX_ITER + 1, 9)
   path[1, ] <- theta
   fail <- integer(MAX_ITER)
   degen <- numeric(MAX_ITER)
+  halved <- integer(MAX_ITER)
   progress <- rep(NA, MAX_ITER)
   converged <- FALSE
   residual <- NA
   stop_rule <- "maxit"
   k <- 0L
+  filled <- 1L
 
   for (i in seq_len(MAX_ITER)) {
     sim <- matrix(NA, H, 9)
@@ -138,20 +155,52 @@ fit_ib <- function(
         1e-8
     }))
 
-    # tolerance rule on update
     gap <- pi_hat - colMeans(sim[ok, , drop = FALSE])
-    theta <- theta + STEP * gap
-    path[i + 1, ] <- theta
     k <- i
     residual <- max(abs(gap))
     progress[i] <- residual
+
+    # halve until the step keeps sigma non-singular (max 20 times)
+    step <- STEP
+    repeat {
+      cand <- theta + step * gap
+      S <- theta2list(cand)$SIGMA
+      if (
+        all(is.finite(cand)) &&
+          all(is.finite(S)) &&
+          min(eigen(S, symmetric = TRUE, only.values = TRUE)$values) >=
+            min_var &&
+          !inherits(try(chol(S), silent = TRUE), "try-error")
+      ) {
+        break
+      }
+      step <- step / 2
+      halved[i] <- halved[i] + 1L
+      if (step < STEP * 2^-19) {
+        cand <- NULL
+        break
+      }
+    }
+    if (is.null(cand)) {
+      stop_rule <- "singular"
+      warning(
+        "singular Sigma ",
+        call. = FALSE
+      )
+      break
+    }
+    theta <- cand
+    path[i + 1, ] <- theta
+    filled <- i + 1L
+
+    # tolerance rule on update
     if (residual < TOL) {
       converged <- TRUE
       stop_rule <- "tol"
       break
     }
 
-    # flat progress curve, after ib
+    # flat progress curve, as per {ib} packagex
     if (k > 10L) {
       y <- progress[k:(k - 10L)]
       x <- k:(k - 10L)
@@ -165,22 +214,22 @@ fit_ib <- function(
   if (sum(fail[seq_len(k)]) > 0) {
     warning(
       sum(fail[seq_len(k)]),
-      " simulated TLMM fits failed and were excluded; ",
-      "the average is then over a selected subset"
+      " simulated TLMM fits failed and were excluded."
     )
   }
 
   out <- list(
-    THETA = path[k + 1, ],
+    THETA = path[filled, ],
     PI_HAT = pi_hat,
     N_ITER = k,
     CONVERGED = converged,
     STOP = stop_rule,
     RESIDUAL = residual,
     PROGRESS = progress[seq_len(k)],
-    PATH = path[seq_len(k + 1), , drop = FALSE],
+    PATH = path[seq_len(filled), , drop = FALSE],
     FAIL = fail[seq_len(k)],
     DEGEN = degen[seq_len(k)],
+    HALVED = halved[seq_len(k)],
     SEEDS = SEEDS
   )
   class(out) <- c("accmeta_ib", "accmeta_fit")

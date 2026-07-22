@@ -37,13 +37,14 @@ matching equation that defines the estimator.}
 A list with components \code{THETA}, the bias-corrected estimate;
 \code{PI_HAT}, the uncorrected TLMM estimate; \code{N_ITER}, the number of iterations
 used; \code{CONVERGED}, whether the tolerance was met; \code{STOP}, which rule ended
-the recursion, one of \code{"tol"}, \code{"plateau"} or
-\code{"maxit"}; \code{RESIDUAL}, the largest absolute departure from the matching
+the recursion, one of \code{"tol"}, \code{"plateau"}, \code{"maxit"} or \code{"singular"};
+\code{RESIDUAL}, the largest absolute departure from the matching
 equation at the last iteration; \code{PROGRESS}, that departure at every
 iteration; \code{PATH}, the iterates, one row per step; \code{FAIL}, the number of
 simulated fits that failed every retry, per iteration; \code{DEGEN}, the
 proportion of the \code{H} simulated fits whose \eqn{\Sigma_3} was degenerate,
-per iteration; and \code{SEEDS}.
+per iteration; \code{HALVED}, the number of step halvings per iteration; and
+\code{SEEDS}.
 }
 \description{
 Estimates from TLMM estimates might contain bias from up to three distinct sources:

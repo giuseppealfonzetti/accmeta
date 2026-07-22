@@ -5,7 +5,7 @@
 \alias{print.accmeta_data}
 \title{Validate misclassification counts and pre-compute study summaries}
 \usage{
-set_meta_data(MATRIX, CC = 0)
+set_meta_data(MATRIX, CC = 0, VERBOSE = TRUE)
 
 \method{print}{accmeta_data}(x, ...)
 }
@@ -17,6 +17,8 @@ If they are unnamed, that order is assumed.}
 
 \item{CC}{Non-negative continuity correction, added to each of the four cells
 of every study. Needed by \code{\link[=fit_tlmm]{fit_tlmm()}} when zero cells are observed.}
+
+\item{VERBOSE}{allow messages.}
 
 \item{x}{An \code{accmeta_data} object.}
 
