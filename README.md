@@ -34,6 +34,8 @@ theta2list(th)
 #> eta   1.2099754 0.4399955 0.3299966
 #> xi    0.4399955 0.5200184 0.2400031
 #> gamma 0.3299966 0.2400031 0.3800236
+min(eigen(theta2list(th)$SIGMA)$values)
+#> [1] 0.2000188
 ```
 
 Simulate data from true model
@@ -126,25 +128,23 @@ coef(ib)
 #> gamma 0.6861275 0.4015962 0.7210829
 ```
 
-Raw estimates:
+All models are estimated, by default, with the recommended Wishart
+prior. You can change it via
 
 ``` r
-
-# raw estimates
-res <- rbind(
-  truth = th, 
-  TLMM = tlmm$THETA, 
-  TGLMM = tglmm$THETA, 
-  IB = ib$THETA)
-res
-#>           [,1]      [,2]       [,3]        [,4]      [,5]       [,6]      [,7]
-#> truth 2.940000 -2.200000 -0.4000000  0.09530000 0.4000000 -0.5108000 0.3000000
-#> TLMM  2.594077 -1.889481 -0.4257916 -0.21870787 0.5089039 -0.9131450 0.6604556
-#> TGLMM 2.934820 -2.030976 -0.4404185 -0.06004097 0.5000930 -0.7244263 0.6832826
-#> IB    2.919326 -2.105983 -0.4763200 -0.06417762 0.6619840 -0.8391709 0.7316053
-#>              [,8]       [,9]
-#> truth  0.20000000 -0.6931000
-#> TLMM   0.02162351 -1.1240082
-#> TGLMM  0.02122976 -1.0660574
-#> IB    -0.19143915 -0.9512751
+tglmm_mle <- fit_tglmm(d, PRIOR = set_prior(DEGREES = 4, SCALE = Inf))
+coef(tglmm_mle)
+#> $MU
+#>        eta         xi      gamma 
+#>  2.8757287 -2.0176921 -0.4397477 
+#> 
+#> $SIGMA
+#>             eta        xi     gamma
+#> eta   0.6882836 0.4539968 0.5911395
+#> xi    0.4539968 0.4211910 0.3304126
+#> gamma 0.5911395 0.3304126 0.5367958
+min(eigen(coef(tglmm_mle)$SIGMA)$values)
+#> [1] 1.289971e-10
+min(eigen(coef(tglmm)$SIGMA)$values)
+#> [1] 0.07366225
 ```

@@ -34,6 +34,7 @@ library(accmeta)
 
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
 theta2list(th)
+min(eigen(theta2list(th)$SIGMA)$values)
 
 ```
 
@@ -80,15 +81,13 @@ coef(ib)
 
 ```
 
-Raw estimates:
-```{r compare}
+All models are estimated, by default, with the recommended Wishart prior. You can change it via
 
-# raw estimates
-res <- rbind(
-  truth = th, 
-  TLMM = tlmm$THETA, 
-  TGLMM = tglmm$THETA, 
-  IB = ib$THETA)
-res
+```{r}
+tglmm_mle <- fit_tglmm(d, PRIOR = set_prior(DEGREES = 4, SCALE = Inf))
+coef(tglmm_mle)
+min(eigen(coef(tglmm_mle)$SIGMA)$values)
+min(eigen(coef(tglmm)$SIGMA)$values)
 
 ```
+
