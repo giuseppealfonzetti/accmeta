@@ -9,12 +9,42 @@
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
-Meta-analysis of diagnostic accuracy, in terms of sensitivity,
-specificity and prevalence. Three estimators are available: a trivariate
-linear mixed model (TLMM) using a within-study normal approximation, the
-trivariate generalized linear mixed model (TGLMM), and an iterative
-bootstrap that corrects the bias of the TLMM by simulating from the
-TGLMM.
+Penalised estimation of meta-analysis models for diagnostic accuracy, in
+terms of sensitivity, specificity and prevalence. Three estimators are
+available: a trivariate linear mixed model (TLMM) using a within-study
+normal approximation, the trivariate generalized linear mixed model
+(TGLMM), and an iterative bootstrap that corrects the bias of the TLMM
+by simulating from the TGLMM.
+
+## Installation
+
+You can install the package via
+
+``` r
+devtools::install_github("giuseppealfonzetti/accmeta")
+#> Using GitHub PAT from the git credential store.
+#> Downloading GitHub repo giuseppealfonzetti/accmeta@HEAD
+#> Rcpp    (1.1.1  -> 1.1.2 ) [CRAN]
+#> TMB     (1.9.20 -> 1.9.22) [CRAN]
+#> ucminf  (1.2.2  -> 1.2.3 ) [CRAN]
+#> statmod (1.5.1  -> 1.5.2 ) [CRAN]
+#> Installing 4 packages: Rcpp, TMB, ucminf, statmod
+#> Installing packages into '/private/var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T/RtmpRdWZMH/temp_libpathd133129d66d3'
+#> (as 'lib' is unspecified)
+#> 
+#> The downloaded binary packages are in
+#>  /var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T//RtmpMsby4r/downloaded_packages
+#> ── R CMD build ─────────────────────────────────────────────────────────────────
+#> * checking for file ‘/private/var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T/RtmpMsby4r/remotesd589358a5ff/giuseppealfonzetti-accmeta-4563fbf50ec7ec43d6619453d86ac66a9dda3343/DESCRIPTION’ ... OK
+#> * preparing ‘accmeta’:
+#> * checking DESCRIPTION meta-information ... OK
+#> * cleaning src
+#> * checking for LF line-endings in source and make files and shell scripts
+#> * checking for empty or unneeded directories
+#> * building ‘accmeta_0.0.0.9000.tar.gz’
+#> Installing package into '/private/var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T/RtmpRdWZMH/temp_libpathd133129d66d3'
+#> (as 'lib' is unspecified)
+```
 
 ## Example
 

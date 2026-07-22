@@ -19,11 +19,19 @@ knitr::opts_chunk$set(
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
-Meta-analysis of diagnostic accuracy, in terms of sensitivity, specificity and
+Penalised estimation of meta-analysis models for diagnostic accuracy, in terms of sensitivity, specificity and
 prevalence. Three estimators are available: a trivariate linear mixed model
 (TLMM) using a within-study normal approximation, the trivariate
 generalized linear mixed model (TGLMM), and an iterative bootstrap that corrects
 the bias of the TLMM by simulating from the TGLMM.
+
+## Installation
+
+You can install the package via 
+
+```{r}
+devtools::install_github("giuseppealfonzetti/accmeta")
+```
 
 ## Example
 
