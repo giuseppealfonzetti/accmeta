@@ -2,7 +2,12 @@ Package: accmeta
 Title: Meta-analysis of diagnostic accuracy
 Version: 0.0.0.9000
 Authors@R: 
-    person("Giuseppe", "Alfonzetti", , "giuseppe.alfonzetti@uniud.it", role = c("aut", "cre"))
+    c(
+        person("Giuseppe", "Alfonzetti", , "giuseppe.alfonzetti@uniud.it", role = c("aut", "cre")),
+        person("Ruggero", "Bellio", , "ruggero.bellio@uniud.it", role = c("aut")),
+        person("Stéphane", "Guerrier", , "stef.guerrier@gmail.com", role = c("aut")),
+        person("Annamaria", "Guolo", , "annamaria.guolo@unipd.it", role = c("aut"))
+    )
 Description: Meta-analysis of diagnostic accuracy in terms of sensitivity, specificity and prevalence.
 License: MIT + file LICENSE
 Suggests: 
