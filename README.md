@@ -26,11 +26,11 @@ pak::pkg_install("giuseppealfonzetti/accmeta")
 #> ✔ Loading metadata database ... done
 #> 
 #> 
-#> → Package library at '/private/var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T/RtmpkA7NLB/temp_libpath92b04c3b3345'.
+#> → Package library at '/private/var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T/RtmpkA7NLB/temp_libpath92b03ebae21e'.
 #> → Will install 5 packages.
 #> → Will update 1 package.
 #> → Will download 5 packages with unknown size.
-#> + accmeta   0.0.0.9000 → 0.0.0.9000 👷🏽‍♂️🔧 (GitHub: 98f8d24)
+#> + accmeta   0.0.0.9000 → 0.0.0.9000 👷🏻‍♀️🔧 (GitHub: 5dcec66)
 #> + Rcpp                   1.1.2      🔧 ⬇
 #> + RcppEigen              0.3.4.0.2  🔧 ⬇
 #> + statmod                1.5.2      🔧 ⬇
@@ -40,20 +40,20 @@ pak::pkg_install("giuseppealfonzetti/accmeta")
 #> ✔ Got statmod 1.5.2 (aarch64-apple-darwin23) (333.15 kB)
 #> ✔ Got ucminf 1.2.3 (aarch64-apple-darwin23) (53.08 kB)
 #> ✔ Got TMB 1.9.25 (aarch64-apple-darwin23) (1.19 MB)
-#> ✔ Got accmeta 0.0.0.9000 (source) (43.03 kB)
-#> ✔ Got RcppEigen 0.3.4.0.2 (aarch64-apple-darwin23) (5.03 MB)
 #> ✔ Got Rcpp 1.1.2 (aarch64-apple-darwin23) (3.56 MB)
-#> ✔ Installed statmod 1.5.2  (32ms)
-#> ✔ Installed ucminf 1.2.3  (26ms)
-#> ✔ Installed TMB 1.9.25  (88ms)
-#> ✔ Installed Rcpp 1.1.2  (145ms)
-#> ✔ Installed RcppEigen 0.3.4.0.2  (153ms)
+#> ✔ Got accmeta 0.0.0.9000 (source) (43.14 kB)
+#> ✔ Got RcppEigen 0.3.4.0.2 (aarch64-apple-darwin23) (5.03 MB)
+#> ✔ Installed statmod 1.5.2  (35ms)
+#> ✔ Installed ucminf 1.2.3  (27ms)
+#> ✔ Installed TMB 1.9.25  (102ms)
+#> ✔ Installed Rcpp 1.1.2  (171ms)
+#> ✔ Installed RcppEigen 0.3.4.0.2  (191ms)
 #> ℹ Packaging accmeta 0.0.0.9000
-#> ✔ Packaged accmeta 0.0.0.9000 (418ms)
+#> ✔ Packaged accmeta 0.0.0.9000 (473ms)
 #> ℹ Building accmeta 0.0.0.9000
-#> ✔ Built accmeta 0.0.0.9000 (22.2s)
-#> ✔ Installed accmeta 0.0.0.9000 (github::giuseppealfonzetti/accmeta@98f8d24) (26ms)
-#> ✔ 1 pkg + 7 deps: kept 2, upd 1, added 5, dld 6 (NA B) [29.7s]
+#> ✔ Built accmeta 0.0.0.9000 (21.8s)
+#> ✔ Installed accmeta 0.0.0.9000 (github::giuseppealfonzetti/accmeta@5dcec66) (27ms)
+#> ✔ 1 pkg + 7 deps: kept 2, upd 1, added 5, dld 6 (NA B) [30s]
 ```
 
 ## Example
