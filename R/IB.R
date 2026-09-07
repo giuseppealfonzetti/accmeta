@@ -34,8 +34,8 @@
 #'   iteration; `PATH`, the iterates, one row per step; `FAIL`, the number of
 #'   simulated fits that failed every retry, per iteration; `DEGEN`, the
 #'   proportion of the `H` simulated fits whose \eqn{\Sigma_3} was degenerate,
-#'   per iteration; `HALVED`, the number of step halvings per iteration; and
-#'   `SEEDS`.
+#'   per iteration; `HALVED`, the number of step halvings per iteration;
+#'   `SEEDS`; and `PRIOR`, the prior used.
 #'
 #' @seealso [fit_tlmm()] for the auxiliary estimator and [set_prior()] for the
 #'   prior specification.
@@ -230,7 +230,8 @@ fit_ib <- function(
     FAIL = fail[seq_len(k)],
     DEGEN = degen[seq_len(k)],
     HALVED = halved[seq_len(k)],
-    SEEDS = SEEDS
+    SEEDS = SEEDS,
+    PRIOR = PRIOR
   )
   class(out) <- c("accmeta_ib", "accmeta_fit")
   return(out)

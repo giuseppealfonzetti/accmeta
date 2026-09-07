@@ -19,8 +19,9 @@
 #'
 #' @return A list with components `THETA`, the fitted parameter vector in the
 #'   layout documented for [theta2list()]; `CONVERGENCE`, the optimiser
-#'   convergence code; `NLL`, the negative log-likelihood at the optimum; and
-#'   `OBJ`, the TMB object, retained for [TMB::sdreport()].
+#'   convergence code; `NLL`, the negative log-likelihood at the optimum;
+#'   `OBJ`, the TMB object, retained for [TMB::sdreport()]; and `PRIOR`, the
+#'   prior used.
 #'
 #' @examples
 #' \dontrun{
@@ -84,7 +85,8 @@ fit_tglmm <- function(
     THETA = unname(est$par),
     CONVERGENCE = est$convergence,
     NLL = est$value,
-    OBJ = obj
+    OBJ = obj,
+    PRIOR = PRIOR
   )
   class(out) <- c("accmeta_tglmm", "accmeta_fit")
   return(out)

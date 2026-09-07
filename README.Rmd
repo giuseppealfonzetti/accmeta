@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 # accmeta
 
 <!-- badges: start -->
-[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)[![R-CMD-check](https://github.com/giuseppealfonzetti/accmeta/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/giuseppealfonzetti/accmeta/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 Penalised estimation of meta-analysis models for diagnostic accuracy, in terms of sensitivity, specificity and
@@ -30,7 +30,7 @@ the bias of the TLMM by simulating from the TGLMM.
 You can install the package via 
 
 ```{r}
-devtools::install_github("giuseppealfonzetti/accmeta")
+pak::pkg_install("giuseppealfonzetti/accmeta")
 ```
 
 ## Example

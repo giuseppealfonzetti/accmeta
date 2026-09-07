@@ -43,8 +43,8 @@ equation at the last iteration; \code{PROGRESS}, that departure at every
 iteration; \code{PATH}, the iterates, one row per step; \code{FAIL}, the number of
 simulated fits that failed every retry, per iteration; \code{DEGEN}, the
 proportion of the \code{H} simulated fits whose \eqn{\Sigma_3} was degenerate,
-per iteration; \code{HALVED}, the number of step halvings per iteration; and
-\code{SEEDS}.
+per iteration; \code{HALVED}, the number of step halvings per iteration;
+\code{SEEDS}; and \code{PRIOR}, the prior used.
 }
 \description{
 Estimates from TLMM estimates might contain bias from up to three distinct sources:

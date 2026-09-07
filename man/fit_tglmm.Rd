@@ -35,8 +35,9 @@ above the ucminf default, which this likelihood exhausts before converging.}
 \value{
 A list with components \code{THETA}, the fitted parameter vector in the
 layout documented for \code{\link[=theta2list]{theta2list()}}; \code{CONVERGENCE}, the optimiser
-convergence code; \code{NLL}, the negative log-likelihood at the optimum; and
-\code{OBJ}, the TMB object, retained for \code{\link[TMB:sdreport]{TMB::sdreport()}}.
+convergence code; \code{NLL}, the negative log-likelihood at the optimum;
+\code{OBJ}, the TMB object, retained for \code{\link[TMB:sdreport]{TMB::sdreport()}}; and \code{PRIOR}, the
+prior used.
 }
 \description{
 Trivariate generalized linear mixed model. The
