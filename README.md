@@ -6,7 +6,7 @@
 <!-- badges: start -->
 
 [![Lifecycle:
-experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)[![R-CMD-check](https://github.com/giuseppealfonzetti/accmeta/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/giuseppealfonzetti/accmeta/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 Penalised estimation of meta-analysis models for diagnostic accuracy, in
@@ -21,29 +21,39 @@ by simulating from the TGLMM.
 You can install the package via
 
 ``` r
-devtools::install_github("giuseppealfonzetti/accmeta")
-#> Using GitHub PAT from the git credential store.
-#> Downloading GitHub repo giuseppealfonzetti/accmeta@HEAD
-#> Rcpp    (1.1.1  -> 1.1.2 ) [CRAN]
-#> TMB     (1.9.20 -> 1.9.22) [CRAN]
-#> ucminf  (1.2.2  -> 1.2.3 ) [CRAN]
-#> statmod (1.5.1  -> 1.5.2 ) [CRAN]
-#> Installing 4 packages: Rcpp, TMB, ucminf, statmod
-#> Installing packages into '/private/var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T/RtmpRdWZMH/temp_libpathd133129d66d3'
-#> (as 'lib' is unspecified)
+pak::pkg_install("giuseppealfonzetti/accmeta")
+#> ℹ Loading metadata database
+#> ✔ Loading metadata database ... done
 #> 
-#> The downloaded binary packages are in
-#>  /var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T//RtmpMsby4r/downloaded_packages
-#> ── R CMD build ─────────────────────────────────────────────────────────────────
-#> * checking for file ‘/private/var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T/RtmpMsby4r/remotesd589358a5ff/giuseppealfonzetti-accmeta-4563fbf50ec7ec43d6619453d86ac66a9dda3343/DESCRIPTION’ ... OK
-#> * preparing ‘accmeta’:
-#> * checking DESCRIPTION meta-information ... OK
-#> * cleaning src
-#> * checking for LF line-endings in source and make files and shell scripts
-#> * checking for empty or unneeded directories
-#> * building ‘accmeta_0.0.0.9000.tar.gz’
-#> Installing package into '/private/var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T/RtmpRdWZMH/temp_libpathd133129d66d3'
-#> (as 'lib' is unspecified)
+#> 
+#> → Package library at '/private/var/folders/4z/s_6y54qn43xdykvrmqg13kh40000gn/T/RtmpkA7NLB/temp_libpath92b04c3b3345'.
+#> → Will install 5 packages.
+#> → Will update 1 package.
+#> → Will download 5 packages with unknown size.
+#> + accmeta   0.0.0.9000 → 0.0.0.9000 👷🏽‍♂️🔧 (GitHub: 98f8d24)
+#> + Rcpp                   1.1.2      🔧 ⬇
+#> + RcppEigen              0.3.4.0.2  🔧 ⬇
+#> + statmod                1.5.2      🔧 ⬇
+#> + TMB                    1.9.25     🔧 ⬇
+#> + ucminf                 1.2.3      🔧 ⬇
+#> ℹ Getting 5 pkgs with unknown sizes, 1 cached
+#> ✔ Got statmod 1.5.2 (aarch64-apple-darwin23) (333.15 kB)
+#> ✔ Got ucminf 1.2.3 (aarch64-apple-darwin23) (53.08 kB)
+#> ✔ Got TMB 1.9.25 (aarch64-apple-darwin23) (1.19 MB)
+#> ✔ Got accmeta 0.0.0.9000 (source) (43.03 kB)
+#> ✔ Got RcppEigen 0.3.4.0.2 (aarch64-apple-darwin23) (5.03 MB)
+#> ✔ Got Rcpp 1.1.2 (aarch64-apple-darwin23) (3.56 MB)
+#> ✔ Installed statmod 1.5.2  (32ms)
+#> ✔ Installed ucminf 1.2.3  (26ms)
+#> ✔ Installed TMB 1.9.25  (88ms)
+#> ✔ Installed Rcpp 1.1.2  (145ms)
+#> ✔ Installed RcppEigen 0.3.4.0.2  (153ms)
+#> ℹ Packaging accmeta 0.0.0.9000
+#> ✔ Packaged accmeta 0.0.0.9000 (418ms)
+#> ℹ Building accmeta 0.0.0.9000
+#> ✔ Built accmeta 0.0.0.9000 (22.2s)
+#> ✔ Installed accmeta 0.0.0.9000 (github::giuseppealfonzetti/accmeta@98f8d24) (26ms)
+#> ✔ 1 pkg + 7 deps: kept 2, upd 1, added 5, dld 6 (NA B) [29.7s]
 ```
 
 ## Example
