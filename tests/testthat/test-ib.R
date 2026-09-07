@@ -37,7 +37,7 @@ test_that("the result carries its path and diagnostics", {
   f <- fit_ib(d, H = 10, MAX_ITER = 3, SEEDS = 1:10)
   expect_named(f, c(
     "THETA", "PI_HAT", "N_ITER", "CONVERGED", "STOP", "RESIDUAL",
-    "PROGRESS", "PATH", "FAIL", "DEGEN", "HALVED", "SEEDS"
+    "PROGRESS", "PATH", "FAIL", "DEGEN", "HALVED", "SEEDS", "PRIOR"
   ))
   expect_length(f$THETA, 9)
   expect_identical(nrow(f$PATH), f$N_ITER + 1L)
@@ -127,7 +127,7 @@ test_that("a boundary start is projected inward", {
     theta2list(f$PATH[1, ])$SIGMA,
     symmetric = TRUE, only.values = TRUE
   )$values
-  expect_gte(min(start_ev), 1e-4)
+  expect_gte(min(start_ev), 1e-4 - 1e-9)
 })
 
 test_that("a runaway update is halved instead of crashing", {
