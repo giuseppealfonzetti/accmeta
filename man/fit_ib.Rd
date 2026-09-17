@@ -9,8 +9,9 @@ fit_ib(
   H = 100,
   MAX_ITER = 25,
   TOL = 0.2/sqrt(H),
-  STEP = 1,
+  STEP = 0.1,
   PRIOR = set_prior(),
+  WORKPAR = c("PinheiroBates", "Joe"),
   SEEDS = NULL
 )
 }
@@ -29,6 +30,12 @@ matching equation that defines the estimator.}
 \item{STEP}{Damping factor \eqn{\gamma \in (0, 1]}.}
 
 \item{PRIOR}{Prior on \eqn{\Sigma_3}, as returned by \code{\link[=set_prior]{set_prior()}}.}
+
+\item{WORKPAR}{Working scale for the matching equation and the
+update: \code{"PinheiroBates"} (default) based on the log-Cholesky decomposition,
+or \code{"Joe"} based on unconstrained partial correlations. \code{TOL}/\code{RESIDUAL} are
+measured on the chosen scale. \code{"Joe"} keeps every iterate positive-definite
+by construction.}
 
 \item{SEEDS}{Integer vector of length \code{H} seeding the simulated datasets. If
 \code{NULL}, drawn once and then held fixed.}

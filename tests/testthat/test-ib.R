@@ -142,7 +142,7 @@ test_that("a runaway update is halved instead of crashing", {
   set.seed(1)
   d <- set_meta_data(sim_data(15, tv, ss), CC = 0.5)
   f <- suppressWarnings(
-    fit_ib(d, H = 20, MAX_ITER = 6, PRIOR = set_prior(4), SEEDS = 1:20)
+    fit_ib(d, H = 20, MAX_ITER = 6, STEP = 1, PRIOR = set_prior(4), SEEDS = 1:20)
   )
   expect_true(all(is.finite(f$THETA)))
   expect_gt(sum(f$HALVED), 0)

@@ -13,6 +13,11 @@
 #'   matching equation that defines the estimator.
 #' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
 #' @param PRIOR Prior on \eqn{\Sigma_3}, as returned by [set_prior()].
+#' @param WORKPAR Working scale for the matching equation and the
+#'   update: `"PinheiroBates"` (default) based on the log-Cholesky decomposition,
+#'   or `"Joe"` based on unconstrained partial correlations. `TOL`/`RESIDUAL` are
+#'   measured on the chosen scale. `"Joe"` keeps every iterate positive-definite
+#'   by construction.
 #' @param SEEDS Integer vector of length `H` seeding the simulated datasets. If
 #'   `NULL`, drawn once and then held fixed.
 #'
@@ -53,11 +58,15 @@ fit_ib <- function(
   H = 100,
   MAX_ITER = 25,
   TOL = 0.2 / sqrt(H),
-  STEP = 1,
+  STEP = .1,
   PRIOR = set_prior(),
+  WORKPAR = c("PinheiroBates", "Joe"),
   SEEDS = NULL
 ) {
   min_var <- 1e-4
+  WORKPAR <- match.arg(WORKPAR)
+  to_work <- if (WORKPAR == "Joe") theta2joe else identity
+  from_work <- if (WORKPAR == "Joe") joe2theta else identity
 
   stopifnot(
     inherits(DATA, "accmeta_data"),
@@ -96,6 +105,7 @@ fit_ib <- function(
   n_studies <- DATA$n_studies
   n_i <- DATA$margins[, "n"]
   pi_hat <- fit_tlmm(DATA, PRIOR = PRIOR)$THETA
+  pi_hat_work <- to_work(pi_hat)
 
   theta <- pi_hat
   # bound starting Sigma
@@ -155,15 +165,20 @@ fit_ib <- function(
         1e-8
     }))
 
-    gap <- pi_hat - colMeans(sim[ok, , drop = FALSE])
+    sim_ok <- sim[ok, , drop = FALSE]
+    if (WORKPAR == "Joe") {
+      sim_ok <- t(apply(sim_ok, 1, theta2joe))
+    }
+    gap <- pi_hat_work - colMeans(sim_ok)
     k <- i
     residual <- max(abs(gap))
     progress[i] <- residual
 
     # halve until the step keeps sigma non-singular (max 20 times)
     step <- STEP
+    theta_work <- to_work(theta)
     repeat {
-      cand <- theta + step * gap
+      cand <- from_work(theta_work + step * gap)
       S <- theta2list(cand)$SIGMA
       if (
         all(is.finite(cand)) &&

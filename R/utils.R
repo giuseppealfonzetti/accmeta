@@ -113,7 +113,9 @@ set_prior <- function(DEGREES = 5, SCALE = Inf) {
 #'   entries 1 to 3 the means (copied verbatim), 4 to 6 the log marginal SDs
 #'   \eqn{\log\sqrt{\mathrm{diag}\,\Sigma_3}}, 7 to 9 the Fisher-z values
 #'   \eqn{(\mathrm{atanh}\,\rho_{12}, \mathrm{atanh}\,\rho_{13},
-#'   \mathrm{atanh}\,\rho_{23\mid1})}.
+#'   \mathrm{atanh}\,\rho_{23\mid1})}. Correlations are clamped to
+#'   \eqn{\pm(1 - 10^{-10})} before `atanh`, so `joe2theta(theta2joe())` is
+#'   exact for interior values but not bit-exact at a \eqn{\pm 1} boundary.
 #'
 #' @seealso [joe2theta()] for the inverse map.
 #' @export
@@ -125,7 +127,8 @@ theta2joe <- function(THETA) {
   r13 <- cormat[1, 3]
   r23 <- cormat[2, 3]
   r23g1 <- (r23 - r12 * r13) / sqrt((1 - r12^2) * (1 - r13^2))
-  unname(c(li$MU, log(s), atanh(c(r12, r13, r23g1))))
+  r <- pmin(pmax(c(r12, r13, r23g1), -1 + 1e-10), 1 - 1e-10)
+  unname(c(li$MU, log(s), atanh(r)))
 }
 
 #' Map Joe's unconstrained parameters back to the working vector
