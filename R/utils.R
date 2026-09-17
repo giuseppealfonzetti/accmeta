@@ -151,3 +151,72 @@ joe2theta <- function(JOEPAR) {
   cormat <- matrix(c(1, r12, r13, r12, 1, r23, r13, r23, 1), 3, 3)
   list2theta(list(MU = JOEPAR[1:3], SIGMA = cormat * tcrossprod(s)))
 }
+
+
+#' Set the control parameters for the iterative bootstrap
+#'
+#' Build the `CONTROL` object passed to [fit_ib()].
+#'
+#' @param H Number of datasets simulated per iteration.
+#' @param MAX_ITER Maximum number of iterations.
+#' @param TOL Convergence tolerance on \eqn{\max_j |gap_j|}. Defaults to
+#'   \eqn{0.2/\sqrt{H}}, so it tracks the Monte-Carlo noise of the `H` resamples.
+#' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
+#' @param PLATEAU Whether to stop early on a flat progress curve. When `FALSE`
+#'   the plateau rule is disabled and only `TOL`/`MAX_ITER` end the recursion.
+#' @param PLATEAU_PVALUE Slope p-value threshold of the plateau rule.
+#' @param PLATEAU_WINDOW Number of most-recent iterations considered in plateau rule.
+#'
+#' @return An object of class `accmeta_ib_control`to be passed to [fit_ib()].
+#'
+#' @seealso [fit_ib()].
+#'
+#' @examples
+#' set_ib_control()
+#'
+#' @export
+set_ib_control <- function(
+  H = 100,
+  MAX_ITER = 25,
+  TOL = 0.2 / sqrt(H),
+  STEP = 0.1,
+  PLATEAU = TRUE,
+  PLATEAU_PVALUE = 0.2,
+  PLATEAU_WINDOW = 11L
+) {
+  stopifnot(
+    is.numeric(H),
+    length(H) == 1,
+    H >= 2,
+    is.numeric(MAX_ITER),
+    length(MAX_ITER) == 1,
+    MAX_ITER >= 1,
+    is.numeric(TOL),
+    length(TOL) == 1,
+    TOL > 0,
+    is.numeric(STEP),
+    length(STEP) == 1,
+    STEP > 0,
+    STEP <= 1,
+    is.logical(PLATEAU),
+    length(PLATEAU) == 1,
+    is.numeric(PLATEAU_PVALUE),
+    length(PLATEAU_PVALUE) == 1,
+    PLATEAU_PVALUE > 0,
+    PLATEAU_PVALUE < 1,
+    is.numeric(PLATEAU_WINDOW),
+    length(PLATEAU_WINDOW) == 1,
+    PLATEAU_WINDOW >= 3
+  )
+  out <- list(
+    H = H,
+    MAX_ITER = MAX_ITER,
+    TOL = TOL,
+    STEP = STEP,
+    PLATEAU = PLATEAU,
+    PLATEAU_PVALUE = PLATEAU_PVALUE,
+    PLATEAU_WINDOW = PLATEAU_WINDOW
+  )
+  class(out) <- "accmeta_ib_control"
+  return(out)
+}

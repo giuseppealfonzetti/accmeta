@@ -6,7 +6,7 @@ test_that("the fits carry a class", {
   expect_s3_class(fit_tlmm(d), c("accmeta_tlmm", "accmeta_fit"), exact = TRUE)
   expect_s3_class(fit_tglmm(d), c("accmeta_tglmm", "accmeta_fit"), exact = TRUE)
   expect_s3_class(
-    fit_ib(d, H = 10, MAX_ITER = 2, SEEDS = 1:10),
+    fit_ib(d, CONTROL = set_ib_control(H = 10, MAX_ITER = 2), SEEDS = 1:10),
     c("accmeta_ib", "accmeta_fit"),
     exact = TRUE
   )
@@ -24,7 +24,7 @@ test_that("coef unpacks the working vector", {
   expect_identical(coef(g), theta2list(g$THETA))
 
   # the corrected estimate, not the auxiliary
-  b <- fit_ib(d, H = 10, MAX_ITER = 2, SEEDS = 1:10)
+  b <- fit_ib(d, CONTROL = set_ib_control(H = 10, MAX_ITER = 2), SEEDS = 1:10)
   expect_identical(coef(b), theta2list(b$THETA))
   expect_false(isTRUE(all.equal(coef(b)$MU, theta2list(b$PI_HAT)$MU)))
 })
@@ -40,7 +40,7 @@ test_that("printing is short and invisible", {
   # the TMB object stays hidden
   expect_false(any(grepl("OBJ|function", out)))
 
-  b <- fit_ib(d, H = 10, MAX_ITER = 2, SEEDS = 1:10)
+  b <- fit_ib(d, CONTROL = set_ib_control(H = 10, MAX_ITER = 2), SEEDS = 1:10)
   ib_out <- capture.output(print(b))
   expect_match(ib_out[1], "accmeta_ib")
   expect_match(ib_out[1], b$STOP)

@@ -6,10 +6,7 @@
 \usage{
 fit_ib(
   DATA,
-  H = 100,
-  MAX_ITER = 25,
-  TOL = 0.2/sqrt(H),
-  STEP = 0.1,
+  CONTROL = set_ib_control(),
   PRIOR = set_prior(),
   WORKPAR = c("PinheiroBates", "Joe"),
   SEEDS = NULL
@@ -19,23 +16,13 @@ fit_ib(
 \item{DATA}{An \code{accmeta_data} object, as returned by \code{\link[=set_meta_data]{set_meta_data()}},
 with \code{CC > 0}.}
 
-\item{H}{Number of datasets simulated per iteration.}
-
-\item{MAX_ITER}{Maximum number of iterations.}
-
-\item{TOL}{Convergence tolerance on
-\eqn{\max_j |\hat\pi_j - \overline\pi_{H,j}(\theta)|}, the departure from the
-matching equation that defines the estimator.}
-
-\item{STEP}{Damping factor \eqn{\gamma \in (0, 1]}.}
+\item{CONTROL}{Iterative-bootstrap control object from \code{\link[=set_ib_control]{set_ib_control()}}.}
 
 \item{PRIOR}{Prior on \eqn{\Sigma_3}, as returned by \code{\link[=set_prior]{set_prior()}}.}
 
 \item{WORKPAR}{Working scale for the matching equation and the
 update: \code{"PinheiroBates"} (default) based on the log-Cholesky decomposition,
-or \code{"Joe"} based on unconstrained partial correlations. \code{TOL}/\code{RESIDUAL} are
-measured on the chosen scale. \code{"Joe"} keeps every iterate positive-definite
-by construction.}
+or \code{"Joe"} based on unconstrained partial correlations.}
 
 \item{SEEDS}{Integer vector of length \code{H} seeding the simulated datasets. If
 \code{NULL}, drawn once and then held fixed.}
@@ -51,7 +38,7 @@ iteration; \code{PATH}, the iterates, one row per step; \code{FAIL}, the number 
 simulated fits that failed every retry, per iteration; \code{DEGEN}, the
 proportion of the \code{H} simulated fits whose \eqn{\Sigma_3} was degenerate,
 per iteration; \code{HALVED}, the number of step halvings per iteration;
-\code{SEEDS}; and \code{PRIOR}, the prior used.
+\code{SEEDS}; \code{PRIOR}, the prior used; and \code{CONTROL}, the control object used.
 }
 \description{
 Estimates from TLMM estimates might contain bias from up to three distinct sources:
@@ -73,11 +60,11 @@ The default \code{PRIOR} is the one shared by \code{\link[=fit_tlmm]{fit_tlmm()}
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
 set.seed(1)
 x <- sim_data(15, th, sample(40:200, 15, TRUE))
-fit <- fit_ib(set_meta_data(x, CC = 0.5), H = 20, MAX_ITER = 3)
+fit <- fit_ib(set_meta_data(x, CC = 0.5), CONTROL = set_ib_control(H = 20, MAX_ITER = 3))
 rbind(TLMM = fit$PI_HAT, IB = fit$THETA)[, 1:3]
 
 }
 \seealso{
-\code{\link[=fit_tlmm]{fit_tlmm()}} for the auxiliary estimator and \code{\link[=set_prior]{set_prior()}} for the
-prior specification.
+\code{\link[=fit_tlmm]{fit_tlmm()}} for the auxiliary estimator, \code{\link[=set_ib_control]{set_ib_control()}} for the
+control settings, and \code{\link[=set_prior]{set_prior()}} for the prior specification.
 }

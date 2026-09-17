@@ -6,18 +6,11 @@
 #'
 #' @param DATA An `accmeta_data` object, as returned by [set_meta_data()],
 #'   with `CC > 0`.
-#' @param H Number of datasets simulated per iteration.
-#' @param MAX_ITER Maximum number of iterations.
-#' @param TOL Convergence tolerance on
-#'   \eqn{\max_j |\hat\pi_j - \overline\pi_{H,j}(\theta)|}, the departure from the
-#'   matching equation that defines the estimator.
-#' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
+#' @param CONTROL Iterative-bootstrap control object from [set_ib_control()].
 #' @param PRIOR Prior on \eqn{\Sigma_3}, as returned by [set_prior()].
 #' @param WORKPAR Working scale for the matching equation and the
 #'   update: `"PinheiroBates"` (default) based on the log-Cholesky decomposition,
-#'   or `"Joe"` based on unconstrained partial correlations. `TOL`/`RESIDUAL` are
-#'   measured on the chosen scale. `"Joe"` keeps every iterate positive-definite
-#'   by construction.
+#'   or `"Joe"` based on unconstrained partial correlations.
 #' @param SEEDS Integer vector of length `H` seeding the simulated datasets. If
 #'   `NULL`, drawn once and then held fixed.
 #'
@@ -40,25 +33,22 @@
 #'   simulated fits that failed every retry, per iteration; `DEGEN`, the
 #'   proportion of the `H` simulated fits whose \eqn{\Sigma_3} was degenerate,
 #'   per iteration; `HALVED`, the number of step halvings per iteration;
-#'   `SEEDS`; and `PRIOR`, the prior used.
+#'   `SEEDS`; `PRIOR`, the prior used; and `CONTROL`, the control object used.
 #'
-#' @seealso [fit_tlmm()] for the auxiliary estimator and [set_prior()] for the
-#'   prior specification.
+#' @seealso [fit_tlmm()] for the auxiliary estimator, [set_ib_control()] for the
+#'   control settings, and [set_prior()] for the prior specification.
 #'
 #' @examples
 #' th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
 #' set.seed(1)
 #' x <- sim_data(15, th, sample(40:200, 15, TRUE))
-#' fit <- fit_ib(set_meta_data(x, CC = 0.5), H = 20, MAX_ITER = 3)
+#' fit <- fit_ib(set_meta_data(x, CC = 0.5), CONTROL = set_ib_control(H = 20, MAX_ITER = 3))
 #' rbind(TLMM = fit$PI_HAT, IB = fit$THETA)[, 1:3]
 #'
 #' @export
 fit_ib <- function(
   DATA,
-  H = 100,
-  MAX_ITER = 25,
-  TOL = 0.2 / sqrt(H),
-  STEP = .1,
+  CONTROL = set_ib_control(),
   PRIOR = set_prior(),
   WORKPAR = c("PinheiroBates", "Joe"),
   SEEDS = NULL
@@ -72,21 +62,13 @@ fit_ib <- function(
     inherits(DATA, "accmeta_data"),
     is.matrix(DATA$tab),
     inherits(PRIOR, "accmeta_prior"),
-    is.numeric(H),
-    length(H) == 1,
-    H >= 2,
-    is.numeric(MAX_ITER),
-    length(MAX_ITER) == 1,
-    MAX_ITER >= 1,
-    is.numeric(TOL),
-    length(TOL) == 1,
-    TOL > 0,
-    is.numeric(STEP),
-    length(STEP) == 1,
-    STEP > 0,
-    STEP <= 1,
-    is.null(SEEDS) || (is.numeric(SEEDS) && length(SEEDS) == H)
+    inherits(CONTROL, "accmeta_ib_control")
   )
+  H <- CONTROL$H
+  MAX_ITER <- CONTROL$MAX_ITER
+  TOL <- CONTROL$TOL
+  STEP <- CONTROL$STEP
+  stopifnot(is.null(SEEDS) || (is.numeric(SEEDS) && length(SEEDS) == H))
   if (DATA$CC <= 0) {
     stop(
       "DATA must carry a continuity correction, since every simulated dataset ",
@@ -215,11 +197,13 @@ fit_ib <- function(
       break
     }
 
-    # flat progress curve, as per {ib} packagex
-    if (k > 10L) {
-      y <- progress[k:(k - 10L)]
-      x <- k:(k - 10L)
-      if (summary(stats::lm(y ~ x))$coefficients[2, 4] > 0.2) {
+    # flat progress curve, as per {ib} package
+    if (CONTROL$PLATEAU && k >= CONTROL$PLATEAU_WINDOW) {
+      idx <- k:(k - CONTROL$PLATEAU_WINDOW + 1L)
+      if (
+        summary(stats::lm(progress[idx] ~ idx))$coefficients[2, 4] >
+          CONTROL$PLATEAU_PVALUE
+      ) {
         stop_rule <- "plateau"
         break
       }
@@ -246,7 +230,8 @@ fit_ib <- function(
     DEGEN = degen[seq_len(k)],
     HALVED = halved[seq_len(k)],
     SEEDS = SEEDS,
-    PRIOR = PRIOR
+    PRIOR = PRIOR,
+    CONTROL = CONTROL
   )
   class(out) <- c("accmeta_ib", "accmeta_fit")
   return(out)
