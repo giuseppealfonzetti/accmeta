@@ -104,3 +104,47 @@ set_prior <- function(DEGREES = 5, SCALE = Inf) {
   class(out) <- "accmeta_prior"
   return(out)
 }
+
+#' Map the working vector to Joe's unconstrained parameters
+#'
+#' @param THETA Numeric vector of length 9 (see [theta2list()]).
+#'
+#' @return A numeric vector of length 9:
+#'   entries 1 to 3 the means (copied verbatim), 4 to 6 the log marginal SDs
+#'   \eqn{\log\sqrt{\mathrm{diag}\,\Sigma_3}}, 7 to 9 the Fisher-z values
+#'   \eqn{(\mathrm{atanh}\,\rho_{12}, \mathrm{atanh}\,\rho_{13},
+#'   \mathrm{atanh}\,\rho_{23\mid1})}.
+#'
+#' @seealso [joe2theta()] for the inverse map.
+#' @export
+theta2joe <- function(THETA) {
+  li <- theta2list(THETA)
+  s <- sqrt(diag(li$SIGMA))
+  cormat <- li$SIGMA / tcrossprod(s)
+  r12 <- cormat[1, 2]
+  r13 <- cormat[1, 3]
+  r23 <- cormat[2, 3]
+  r23g1 <- (r23 - r12 * r13) / sqrt((1 - r12^2) * (1 - r13^2))
+  unname(c(li$MU, log(s), atanh(c(r12, r13, r23g1))))
+}
+
+#' Map Joe's unconstrained parameters back to the working vector
+#'
+#' @param JOEPAR Numeric vector of length 9 in the layout returned by
+#'   [theta2joe()].
+#'
+#' @return A numeric vector of length 9 (the working vector `THETA`).
+#'
+#' @seealso [theta2joe()] for the inverse map.
+#' @export
+joe2theta <- function(JOEPAR) {
+  stopifnot(is.numeric(JOEPAR), length(JOEPAR) == 9)
+  s <- exp(JOEPAR[4:6])
+  z <- tanh(JOEPAR[7:9])
+  r12 <- z[1]
+  r13 <- z[2]
+  r23g1 <- z[3]
+  r23 <- r12 * r13 + r23g1 * sqrt((1 - r12^2) * (1 - r13^2))
+  cormat <- matrix(c(1, r12, r13, r12, 1, r23, r13, r23, 1), 3, 3)
+  list2theta(list(MU = JOEPAR[1:3], SIGMA = cormat * tcrossprod(s)))
+}
