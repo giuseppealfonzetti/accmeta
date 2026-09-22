@@ -1,9 +1,5 @@
 #' Iterative bootstrap bias correction for TLMM
 #'
-#' Estimates from TLMM estimates might contain bias from up to three distinct sources:
-#' 1) within-study normal approximation; 2) continuity correction; 3) Wishart prior.
-#' Iterative bootstrap removes them all.
-#'
 #' @param DATA An `accmeta_data` object, as returned by [set_meta_data()],
 #'   with `CC > 0`.
 #' @param CONTROL Iterative-bootstrap control object from [set_ib_control()].
@@ -14,26 +10,7 @@
 #' @param SEEDS Integer vector of length `H` seeding the simulated datasets. If
 #'   `NULL`, drawn once and then held fixed.
 #'
-#' @details
-#' The `H` seeds are drawn once and reused for every \eqn{\theta} and at every
-#' iteration. The state of the random number generator is restored on exit.
-#'
-#' The `PRIOR` and the continuity correction recorded on `DATA` reach \eqn{\hat\pi}
-#' and every simulated fit.
-#'
-#' The default `PRIOR` is the one shared by [fit_tlmm()] and [fit_tglmm()].
-#'
-#' @return A list with components `THETA`, the bias-corrected estimate;
-#'   `PI_HAT`, the uncorrected TLMM estimate; `N_ITER`, the number of iterations
-#'   used; `CONVERGED`, whether the tolerance was met; `STOP`, which rule ended
-#'   the recursion, one of `"tol"`, `"plateau"`, `"maxit"` or `"singular"`;
-#'   `RESIDUAL`, the largest absolute departure from the matching
-#'   equation at the last iteration; `PROGRESS`, that departure at every
-#'   iteration; `PATH`, the iterates, one row per step; `FAIL`, the number of
-#'   simulated fits that failed every retry, per iteration; `DEGEN`, the
-#'   proportion of the `H` simulated fits whose \eqn{\Sigma_3} was degenerate,
-#'   per iteration; `HALVED`, the number of step halvings per iteration;
-#'   `SEEDS`; `PRIOR`, the prior used; and `CONTROL`, the control object used.
+#' @return An `accmeta_ib` object
 #'
 #' @seealso [fit_tlmm()] for the auxiliary estimator, [set_ib_control()] for the
 #'   control settings, and [set_prior()] for the prior specification.
@@ -53,186 +30,565 @@ fit_ib <- function(
   WORKPAR = c("PinheiroBates", "Joe"),
   SEEDS = NULL
 ) {
-  min_var <- 1e-4
-  WORKPAR <- match.arg(WORKPAR)
-  to_work <- if (WORKPAR == "Joe") theta2joe else identity
-  from_work <- if (WORKPAR == "Joe") joe2theta else identity
+  # Setup
+  min_eig <- 1e-3
+  n_params <- 9
 
+  WORKPAR <- match.arg(WORKPAR)
   stopifnot(
     inherits(DATA, "accmeta_data"),
     is.matrix(DATA$tab),
     inherits(PRIOR, "accmeta_prior"),
-    inherits(CONTROL, "accmeta_ib_control")
+    inherits(CONTROL, "accmeta_ib_control"),
+    is.null(SEEDS) || (is.numeric(SEEDS) && length(SEEDS) == CONTROL$H)
   )
-  H <- CONTROL$H
-  MAX_ITER <- CONTROL$MAX_ITER
-  TOL <- CONTROL$TOL
-  STEP <- CONTROL$STEP
-  stopifnot(is.null(SEEDS) || (is.numeric(SEEDS) && length(SEEDS) == H))
+
+  if (CONTROL$UPDATE %in% c("broyden", "lm")) {
+    stopifnot(WORKPAR == "Joe")
+  }
+
+  use_parallel <- CONTROL$NCORES > 1L
+  if (use_parallel) {
+    if (!requireNamespace("mirai", quietly = TRUE)) {
+      stop("NCORES > 1 needs the 'mirai' package.", call. = FALSE)
+    }
+    if (mirai::status()$connections > 0L) {
+      stop(
+        "Tear down your existing pool with mirai::daemons(0).",
+        call. = FALSE
+      )
+    }
+    mirai::daemons(min(CONTROL$NCORES, CONTROL$H))
+    on.exit(mirai::daemons(0), add = TRUE)
+  }
   if (DATA$CC <= 0) {
     stop(
-      "DATA must carry a continuity correction, since every simulated dataset ",
-      "is transformed the same way: set_meta_data(MATRIX, CC = 0.5)",
+      "DATA must carry a continuity correction. See `?set_meta_data()`",
       call. = FALSE
     )
   }
-  if (exists(".Random.seed", .GlobalEnv)) {
-    old <- get(".Random.seed", .GlobalEnv)
-    on.exit(assign(".Random.seed", old, .GlobalEnv), add = TRUE)
-  }
+
   if (is.null(SEEDS)) {
-    SEEDS <- sample.int(.Machine$integer.max, H)
+    SEEDS <- sample.int(.Machine$integer.max, CONTROL$H)
   }
-
-  n_studies <- DATA$n_studies
   n_i <- DATA$margins[, "n"]
+
+  # initial estimate
   pi_hat <- fit_tlmm(DATA, PRIOR = PRIOR)$THETA
-  pi_hat_work <- to_work(pi_hat)
+  pi_hat_work <- if (WORKPAR == "Joe") theta2joe(pi_hat) else pi_hat
+  theta <- project_pd(pi_hat, min_eig)
 
-  theta <- pi_hat
-  # bound starting Sigma
-  eig <- eigen(theta2list(theta)$SIGMA, symmetric = TRUE)
-  if (min(eig$values) < min_var) {
-    S <- eig$vectors %*%
-      diag(pmax(eig$values, min_var), 3, 3) %*%
-      t(eig$vectors)
-    theta <- list2theta(list(
-      MU = theta2list(theta)$MU,
-      SIGMA = (S + t(S)) / 2
-    ))
-  }
-
-  path <- matrix(NA, MAX_ITER + 1, 9)
+  # initialise path tracking
+  path <- matrix(NA, CONTROL$MAX_ITER + 1, n_params)
   path[1, ] <- theta
-  fail <- integer(MAX_ITER)
-  degen <- numeric(MAX_ITER)
-  halved <- integer(MAX_ITER)
-  progress <- rep(NA, MAX_ITER)
+  fail <- integer(CONTROL$MAX_ITER)
+  degen <- numeric(CONTROL$MAX_ITER)
+  halved <- integer(CONTROL$MAX_ITER)
+  stepsize <- rep(NA, CONTROL$MAX_ITER)
+  damping_path <- rep(NA, CONTROL$MAX_ITER)
+  gap_path <- matrix(NA, CONTROL$MAX_ITER, n_params)
+  se_path <- matrix(NA, CONTROL$MAX_ITER, n_params)
+  progress <- rep(NA, CONTROL$MAX_ITER)
+  threshold_path <- rep(NA, CONTROL$MAX_ITER)
+
+  # auxiliary quantities
+  jacobian <- diag(-1 / CONTROL$STEP, n_params)
+  theta_work_prev <- NULL
+  gap_prev <- NULL
+  damping <- 1e-3 * max(diag(crossprod(jacobian)))
+  damping_growth <- 2
+  best_theta <- theta
+  best_val <- Inf
+  best_iter <- 0
   converged <- FALSE
-  residual <- NA
   stop_rule <- "maxit"
-  k <- 0L
-  filled <- 1L
+  filled <- 1
 
-  for (i in seq_len(MAX_ITER)) {
-    sim <- matrix(NA, H, 9)
-    for (h in seq_len(H)) {
-      set.seed(SEEDS[h])
-      # retry on failure
-      for (attempt in seq_len(10L)) {
-        d <- set_meta_data(sim_data(n_studies, theta, n_i), CC = DATA$CC)
-        f <- try(
-          fit_tlmm(d, THETA_START = theta, PRIOR = PRIOR),
-          silent = TRUE
-        )
-        if (!inherits(f, "try-error") && all(is.finite(f$THETA))) {
-          sim[h, ] <- f$THETA
-          break
-        }
-      }
-    }
-    ok <- stats::complete.cases(sim)
-    fail[i] <- sum(!ok)
-    if (!any(ok)) {
-      stop("all simulated TLMM fits failed at iteration ", i, call. = FALSE)
-    }
-    degen[i] <- mean(apply(sim[ok, , drop = FALSE], 1, function(t) {
-      min(
-        eigen(
-          theta2list(t)$SIGMA,
-          symmetric = TRUE,
-          only.values = TRUE
-        )$values
-      ) <
-        1e-8
-    }))
+  gap_summary <- NULL
 
-    sim_ok <- sim[ok, , drop = FALSE]
-    if (WORKPAR == "Joe") {
-      sim_ok <- t(apply(sim_ok, 1, theta2joe))
+  # root finding loop
+  for (iter in seq_len(CONTROL$MAX_ITER)) {
+    if (is.null(gap_summary)) {
+      # compute estimator correction
+      gap_summary <- ib_gap(
+        THETA = theta,
+        SEEDS = SEEDS,
+        H = CONTROL$H,
+        N_STUDIES = DATA$n_studies,
+        N_I = n_i,
+        CC = DATA$CC,
+        PRIOR = PRIOR,
+        USE_PARALLEL = use_parallel,
+        PI_HAT_WORK = pi_hat_work,
+        WORKPAR = WORKPAR,
+        MIN_EIG = min_eig
+      )
     }
-    gap <- pi_hat_work - colMeans(sim_ok)
-    k <- i
-    residual <- max(abs(gap))
-    progress[i] <- residual
+    if (is.null(gap_summary)) {
+      stop("all simulated TLMM fits failed at iteration ", iter, call. = FALSE)
+    }
 
-    # halve until the step keeps sigma non-singular (max 20 times)
-    step <- STEP
-    theta_work <- to_work(theta)
-    repeat {
-      cand <- from_work(theta_work + step * gap)
-      S <- theta2list(cand)$SIGMA
-      if (
-        all(is.finite(cand)) &&
-          all(is.finite(S)) &&
-          min(eigen(S, symmetric = TRUE, only.values = TRUE)$values) >=
-            min_var &&
-          !inherits(try(chol(S), silent = TRUE), "try-error")
-      ) {
-        break
-      }
-      step <- step / 2
-      halved[i] <- halved[i] + 1L
-      if (step < STEP * 2^-19) {
-        cand <- NULL
-        break
-      }
-    }
-    if (is.null(cand)) {
-      stop_rule <- "singular"
-      warning(
-        "singular Sigma ",
+    # track gap-related quantities
+    gap_path[iter, ] <- gap_summary$GAP
+    se_path[iter, ] <- gap_summary$SE
+    fail[iter] <- gap_summary$FAIL
+    degen[iter] <- gap_summary$DEGEN
+
+    # check enough simulations are ok
+    if (gap_summary$H_OK <= n_params) {
+      stop(
+        "only ",
+        gap_summary$H_OK,
+        " of ",
+        CONTROL$H,
+        " simulated fits ",
+        "succeeded at iteration ",
+        iter,
+        "; the Hotelling test needs more ",
+        "than ",
+        n_params,
+        ".",
         call. = FALSE
       )
+    }
+
+    # add small diagonal constant
+    vcov_reg <- gap_summary$V +
+      diag(1e-8 * pmax(diag(gap_summary$V), 1e-12), n_params)
+
+    # compute hotelling t2 for convergence test
+    t2 <- drop(crossprod(
+      gap_summary$GAP,
+      solve(vcov_reg, gap_summary$GAP)
+    ))
+
+    # threshold value under the null hypothesis
+    threshold <- n_params *
+      (gap_summary$H_OK - 1) /
+      (gap_summary$H_OK - n_params) *
+      stats::qf(1 - CONTROL$TOL, n_params, gap_summary$H_OK - n_params)
+
+    # track t2-related
+    progress[iter] <- t2
+    threshold_path[iter] <- threshold
+    if (t2 < best_val) {
+      best_val <- t2
+      best_theta <- theta
+      best_iter <- iter
+    }
+
+    # update estimates
+    theta_work <- if (WORKPAR == "Joe") theta2joe(theta) else theta
+    step <- switch(
+      CONTROL$UPDATE,
+      fixedpoint = ib_step_fixedpoint(
+        THETA_WORK = theta_work,
+        GAP = gap_summary$GAP,
+        STEP = CONTROL$STEP,
+        WORKPAR = WORKPAR,
+        MIN_EIG = min_eig
+      ),
+      broyden = ib_step_broyden(
+        THETA_WORK = theta_work,
+        GAP = gap_summary$GAP,
+        JACOBIAN = jacobian,
+        THETA_WORK_PREV = theta_work_prev,
+        GAP_PREV = gap_prev,
+        STEP = CONTROL$STEP,
+        WORKPAR = WORKPAR,
+        MIN_EIG = min_eig
+      ),
+      lm = ib_step_lm(
+        THETA_WORK = theta_work,
+        GAP = gap_summary$GAP,
+        JACOBIAN = jacobian,
+        DAMPING = damping,
+        DAMPING_GROWTH = damping_growth,
+        SEEDS = SEEDS,
+        H = CONTROL$H,
+        N_STUDIES = DATA$n_studies,
+        N_I = n_i,
+        CC = DATA$CC,
+        PRIOR = PRIOR,
+        USE_PARALLEL = use_parallel,
+        PI_HAT_WORK = pi_hat_work,
+        WORKPAR = WORKPAR,
+        MIN_EIG = min_eig
+      )
+    )
+
+    # store update-realted quantities
+    halved[iter] <- step$HALVED
+    switch(
+      CONTROL$UPDATE,
+      fixedpoint = {
+        stepsize[iter] <- step$STEPSIZE
+        gap_summary <- NULL
+      },
+      broyden = {
+        stepsize[iter] <- step$STEPSIZE
+        jacobian <- step$JACOBIAN
+        theta_work_prev <- step$THETA_WORK_PREV
+        gap_prev <- step$GAP_PREV
+        gap_summary <- NULL
+      },
+      lm = {
+        damping_path[iter] <- step$DAMPING
+        jacobian <- step$JACOBIAN
+        damping <- step$DAMPING
+        damping_growth <- step$DAMPING_GROWTH
+        gap_summary <- step$GAP_SUMMARY
+      }
+    )
+
+    # stop by singular reff sigma
+    if (is.null(step$THETA)) {
+      stop_rule <- "singular"
+      warning("singular Sigma ", call. = FALSE)
       break
     }
-    theta <- cand
-    path[i + 1, ] <- theta
-    filled <- i + 1L
 
-    # tolerance rule on update
-    if (residual < TOL) {
+    # store thate
+    theta <- step$THETA
+    path[iter + 1, ] <- theta
+    filled <- iter + 1L
+
+    # stop by hotelling t2 test
+    if (t2 <= threshold) {
       converged <- TRUE
       stop_rule <- "tol"
       break
     }
 
-    # flat progress curve, as per {ib} package
-    if (CONTROL$PLATEAU && k >= CONTROL$PLATEAU_WINDOW) {
-      idx <- k:(k - CONTROL$PLATEAU_WINDOW + 1L)
-      if (
-        summary(stats::lm(progress[idx] ~ idx))$coefficients[2, 4] >
-          CONTROL$PLATEAU_PVALUE
-      ) {
-        stop_rule <- "plateau"
-        break
-      }
+    # stop by patience on stall updateds
+    if (iter - best_iter >= CONTROL$PATIENCE) {
+      stop_rule <- "stall"
+      break
     }
   }
 
-  if (sum(fail[seq_len(k)]) > 0) {
+  # report explicitely failed fits
+  if (sum(fail[seq_len(iter)]) > 0) {
     warning(
-      sum(fail[seq_len(k)]),
+      sum(fail[seq_len(iter)]),
       " simulated TLMM fits failed and were excluded."
     )
   }
 
   out <- list(
-    THETA = path[filled, ],
+    THETA = best_theta,
     PI_HAT = pi_hat,
-    N_ITER = k,
+    N_ITER = iter,
     CONVERGED = converged,
     STOP = stop_rule,
-    RESIDUAL = residual,
-    PROGRESS = progress[seq_len(k)],
+    RESIDUAL = best_val,
+    PROGRESS = progress[seq_len(iter)],
+    THRESHOLD = threshold_path[seq_len(iter)],
     PATH = path[seq_len(filled), , drop = FALSE],
-    FAIL = fail[seq_len(k)],
-    DEGEN = degen[seq_len(k)],
-    HALVED = halved[seq_len(k)],
+    FAIL = fail[seq_len(iter)],
+    DEGEN = degen[seq_len(iter)],
+    HALVED = halved[seq_len(iter)],
+    STEPSIZE = stepsize[seq_len(iter)],
+    LAMBDA = damping_path[seq_len(iter)],
+    GAP = gap_path[seq_len(iter), , drop = FALSE],
+    SE = se_path[seq_len(iter), , drop = FALSE],
     SEEDS = SEEDS,
     PRIOR = PRIOR,
     CONTROL = CONTROL
   )
   class(out) <- c("accmeta_ib", "accmeta_fit")
   return(out)
+}
+
+
+# ensure pd reff sigma
+project_pd <- function(THETA, MIN_EIG) {
+  li <- theta2list(THETA)
+  eig <- eigen(li$SIGMA, symmetric = TRUE)
+  if (min(eig$values) >= MIN_EIG) {
+    return(THETA)
+  }
+  sigma <- eig$vectors %*%
+    diag(pmax(eig$values, MIN_EIG), 3, 3) %*%
+    t(eig$vectors)
+  list2theta(list(MU = li$MU, SIGMA = (sigma + t(sigma)) / 2))
+}
+
+# single fit helper function
+ib_one_fit <- function(REP, SEEDS, THETA, N_STUDIES, N_I, CC, PRIOR) {
+  set.seed(SEEDS[REP], kind = "Mersenne-Twister", normal.kind = "Inversion")
+
+  # attempts loop to defend from bad sims
+  for (attempt in seq_len(10L)) {
+    d <- accmeta::set_meta_data(
+      accmeta::sim_data(N_STUDIES, THETA, N_I),
+      CC = CC
+    )
+    f <- try(
+      accmeta::fit_tlmm(d, THETA_START = THETA, PRIOR = PRIOR),
+      silent = TRUE
+    )
+    if (!inherits(f, "try-error") && all(is.finite(f$THETA))) {
+      return(f$THETA)
+    }
+  }
+  rep(NA, 9)
+}
+
+# helper function to compute the ib correction term at a given iteration
+ib_gap <- function(
+  THETA,
+  SEEDS,
+  H,
+  N_STUDIES,
+  N_I,
+  CC,
+  PRIOR,
+  USE_PARALLEL,
+  PI_HAT_WORK,
+  WORKPAR,
+  MIN_EIG
+) {
+  rows <- if (USE_PARALLEL) {
+    mirai::mirai_map(
+      seq_len(H),
+      ib_one_fit,
+      .args = list(
+        SEEDS = SEEDS,
+        THETA = THETA,
+        N_STUDIES = N_STUDIES,
+        N_I = N_I,
+        CC = CC,
+        PRIOR = PRIOR
+      )
+    )[]
+  } else {
+    lapply(seq_len(H), function(REP) {
+      ib_one_fit(
+        REP = REP,
+        SEEDS = SEEDS,
+        THETA = THETA,
+        N_STUDIES = N_STUDIES,
+        N_I = N_I,
+        CC = CC,
+        PRIOR = PRIOR
+      )
+    })
+  }
+  sim <- do.call(rbind, rows)
+  ok <- stats::complete.cases(sim)
+  if (!any(ok)) {
+    return(NULL)
+  }
+  sim_ok <- sim[ok, , drop = FALSE]
+  degen <- mean(apply(sim_ok, 1, function(t) {
+    min(
+      eigen(theta2list(t)$SIGMA, symmetric = TRUE, only.values = TRUE)$values
+    ) <
+      MIN_EIG
+  }))
+  if (WORKPAR == "Joe") {
+    sim_ok <- t(apply(sim_ok, 1, theta2joe))
+  }
+  h_ok <- nrow(sim_ok)
+  list(
+    GAP = PI_HAT_WORK - colMeans(sim_ok),
+    SE = pmax(apply(sim_ok, 2, stats::sd) / sqrt(h_ok), 1e-5),
+    V = stats::cov(sim_ok) / h_ok,
+    H_OK = h_ok,
+    FAIL = sum(!ok),
+    DEGEN = degen
+  )
+}
+
+ib_step_fixedpoint <- function(THETA_WORK, GAP, STEP, WORKPAR, MIN_EIG) {
+  step <- STEP
+  halved <- 0L
+  cand <- NULL
+  repeat {
+    proposal <- THETA_WORK + step * GAP
+    trial <- try(
+      if (WORKPAR == "Joe") joe2theta(proposal) else proposal,
+      silent = TRUE
+    )
+    valid <- !inherits(trial, "try-error") && all(is.finite(trial))
+    if (valid) {
+      sigma <- theta2list(trial)$SIGMA
+      valid <- all(is.finite(sigma)) &&
+        min(eigen(sigma, symmetric = TRUE, only.values = TRUE)$values) >=
+          MIN_EIG &&
+        !inherits(try(chol(sigma), silent = TRUE), "try-error")
+    }
+    if (valid) {
+      cand <- trial
+      break
+    }
+    step <- step / 2
+    halved <- halved + 1L
+    if (step < STEP * 2^-19) {
+      break
+    }
+  }
+  list(THETA = cand, HALVED = halved, STEPSIZE = step)
+}
+
+ib_step_broyden <- function(
+  THETA_WORK,
+  GAP,
+  JACOBIAN,
+  THETA_WORK_PREV,
+  GAP_PREV,
+  STEP,
+  WORKPAR,
+  MIN_EIG
+) {
+  if (!is.null(THETA_WORK_PREV)) {
+    theta_change <- THETA_WORK - THETA_WORK_PREV
+    gap_change <- GAP - GAP_PREV
+    theta_change_sq <- drop(crossprod(theta_change))
+    if (theta_change_sq > 1e-12) {
+      JACOBIAN <- JACOBIAN +
+        tcrossprod(gap_change - JACOBIAN %*% theta_change, theta_change) /
+          theta_change_sq
+    }
+  }
+  theta_work_prev <- THETA_WORK
+  gap_prev <- GAP
+  direction <- try(solve(JACOBIAN, -GAP), silent = TRUE)
+  if (inherits(direction, "try-error")) {
+    JACOBIAN <- diag(-1 / STEP, 9)
+    direction <- GAP
+    step0 <- STEP
+  } else {
+    direction <- as.numeric(direction)
+    step0 <- 1
+  }
+  step <- step0
+  halved <- 0L
+  cand <- NULL
+  repeat {
+    proposal <- THETA_WORK + step * direction
+    trial <- try(
+      if (WORKPAR == "Joe") joe2theta(proposal) else proposal,
+      silent = TRUE
+    )
+    valid <- !inherits(trial, "try-error") && all(is.finite(trial))
+    if (valid) {
+      sigma <- theta2list(trial)$SIGMA
+      valid <- all(is.finite(sigma)) &&
+        min(eigen(sigma, symmetric = TRUE, only.values = TRUE)$values) >=
+          MIN_EIG &&
+        !inherits(try(chol(sigma), silent = TRUE), "try-error")
+    }
+    if (valid) {
+      cand <- trial
+      break
+    }
+    step <- step / 2
+    halved <- halved + 1L
+    if (step < step0 * 2^-19) {
+      break
+    }
+  }
+  list(
+    THETA = cand,
+    HALVED = halved,
+    STEPSIZE = step,
+    JACOBIAN = JACOBIAN,
+    THETA_WORK_PREV = theta_work_prev,
+    GAP_PREV = gap_prev
+  )
+}
+
+ib_step_lm <- function(
+  THETA_WORK,
+  GAP,
+  JACOBIAN,
+  DAMPING,
+  DAMPING_GROWTH,
+  SEEDS,
+  H,
+  N_STUDIES,
+  N_I,
+  CC,
+  PRIOR,
+  USE_PARALLEL,
+  PI_HAT_WORK,
+  WORKPAR,
+  MIN_EIG
+) {
+  gram <- crossprod(JACOBIAN)
+  gradient <- crossprod(JACOBIAN, GAP)
+  scale_diag <- diag(pmax(diag(gram), 1e-12), 9)
+  cand <- NULL
+  carried_summary <- NULL
+  halved <- 0L
+  repeat {
+    step_vector <- as.numeric(solve(gram + DAMPING * scale_diag, -gradient))
+    proposal <- THETA_WORK + step_vector
+    trial <- try(
+      if (WORKPAR == "Joe") joe2theta(proposal) else proposal,
+      silent = TRUE
+    )
+    predicted_gap_change <- as.numeric(JACOBIAN %*% step_vector)
+    gain_ratio <- -Inf
+    valid <- !inherits(trial, "try-error") && all(is.finite(trial))
+    if (valid) {
+      sigma <- theta2list(trial)$SIGMA
+      valid <- all(is.finite(sigma)) &&
+        min(eigen(sigma, symmetric = TRUE, only.values = TRUE)$values) >=
+          MIN_EIG &&
+        !inherits(try(chol(sigma), silent = TRUE), "try-error")
+    }
+    if (valid) {
+      trial_summary <- ib_gap(
+        THETA = trial,
+        SEEDS = SEEDS,
+        H = H,
+        N_STUDIES = N_STUDIES,
+        N_I = N_I,
+        CC = CC,
+        PRIOR = PRIOR,
+        USE_PARALLEL = USE_PARALLEL,
+        PI_HAT_WORK = PI_HAT_WORK,
+        WORKPAR = WORKPAR,
+        MIN_EIG = MIN_EIG
+      )
+      if (!is.null(trial_summary)) {
+        predicted <- sum(GAP^2) - sum((GAP + predicted_gap_change)^2)
+        actual <- sum(GAP^2) - sum(trial_summary$GAP^2)
+        gain_ratio <- if (predicted > 0) actual / predicted else -Inf
+      }
+    }
+    if (gain_ratio > 0) {
+      step_sq <- drop(crossprod(step_vector))
+      if (step_sq > 1e-12) {
+        JACOBIAN <- JACOBIAN +
+          tcrossprod(
+            (trial_summary$GAP - GAP) - predicted_gap_change,
+            step_vector
+          ) /
+            step_sq
+      }
+      cand <- trial
+      carried_summary <- trial_summary
+      DAMPING <- DAMPING * max(1 / 3, 1 - (2 * gain_ratio - 1)^3)
+      DAMPING_GROWTH <- 2
+      break
+    }
+    DAMPING <- DAMPING * DAMPING_GROWTH
+    DAMPING_GROWTH <- 2 * DAMPING_GROWTH
+    halved <- halved + 1L
+    if (halved >= 30L) {
+      break
+    }
+  }
+  list(
+    THETA = cand,
+    GAP_SUMMARY = carried_summary,
+    JACOBIAN = JACOBIAN,
+    DAMPING = DAMPING,
+    DAMPING_GROWTH = DAMPING_GROWTH,
+    HALVED = halved
+  )
 }

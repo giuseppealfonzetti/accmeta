@@ -12,20 +12,14 @@ test_that("the same seeds give the same answer", {
   expect_false(isTRUE(all.equal(a$THETA, other$THETA)))
 })
 
-test_that("the generator is left untouched", {
-  set.seed(1)
-  d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
-  set.seed(42)
-  before <- get(".Random.seed", .GlobalEnv)
-  fit_ib(d, CONTROL = set_ib_control(H = 10, MAX_ITER = 2))
-  expect_identical(get(".Random.seed", .GlobalEnv), before)
-})
-
 test_that("a corrected object is required", {
   set.seed(1)
   x <- sim_data(15, th, rep(100, 15))
   d <- set_meta_data(x, CC = 0.5)
-  expect_error(fit_ib(suppressMessages(set_meta_data(x))), "CC = 0.5")
+  expect_error(
+    fit_ib(suppressMessages(set_meta_data(x))),
+    "continuity correction"
+  )
   expect_error(fit_ib(x), "accmeta_data")
   expect_error(fit_ib(d, PRIOR = list()), "accmeta_prior")
   expect_error(set_ib_control(H = 1), "H >= 2")
@@ -37,7 +31,8 @@ test_that("the result carries its path and diagnostics", {
   f <- fit_ib(d, CONTROL = set_ib_control(H = 10, MAX_ITER = 3), SEEDS = 1:10)
   expect_named(f, c(
     "THETA", "PI_HAT", "N_ITER", "CONVERGED", "STOP", "RESIDUAL",
-    "PROGRESS", "PATH", "FAIL", "DEGEN", "HALVED", "SEEDS", "PRIOR", "CONTROL"
+    "PROGRESS", "THRESHOLD", "PATH", "FAIL", "DEGEN", "HALVED", "STEPSIZE",
+    "LAMBDA", "GAP", "SE", "SEEDS", "PRIOR", "CONTROL"
   ))
   expect_length(f$THETA, 9)
   expect_identical(nrow(f$PATH), f$N_ITER + 1L)
@@ -45,36 +40,146 @@ test_that("the result carries its path and diagnostics", {
   expect_length(f$DEGEN, f$N_ITER)
   expect_length(f$PROGRESS, f$N_ITER)
   expect_length(f$HALVED, f$N_ITER)
+  expect_length(f$STEPSIZE, f$N_ITER)
+  expect_length(f$THRESHOLD, f$N_ITER)
+  expect_length(f$LAMBDA, f$N_ITER)
+  # LAMBDA only applies to the Levenberg-Marquardt update
+  expect_true(all(is.na(f$LAMBDA)))
+  expect_identical(dim(f$GAP), c(f$N_ITER, 9L))
+  expect_identical(dim(f$SE), c(f$N_ITER, 9L))
   # a healthy start is not projected
   expect_equal(f$PATH[1, ], f$PI_HAT)
   expect_identical(sum(f$HALVED), 0L)
   expect_equal(f$PI_HAT, fit_tlmm(d, PRIOR = set_prior())$THETA)
-  expect_equal(f$THETA, f$PATH[nrow(f$PATH), ])
+  # the returned estimate is the best-residual iterate on the recorded path
+  expect_equal(f$THETA, f$PATH[which.min(f$PROGRESS), ])
+})
+
+test_that("the Broyden update matches the fixed-point step on iteration 1", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
+  common <- function(update) {
+    set_ib_control(H = 10, MAX_ITER = 5, STEP = 0.3, UPDATE = update)
+  }
+  fp <- fit_ib(d, WORKPAR = "Joe", SEEDS = 1:10, CONTROL = common("fixedpoint"))
+  br <- fit_ib(d, WORKPAR = "Joe", SEEDS = 1:10, CONTROL = common("broyden"))
+  # B_0 = -(1/STEP) I makes the first Broyden step exactly STEP * gap
+  expect_equal(br$PATH[2, ], fp$PATH[2, ])
+  # valid output, and no more iterations to reach the same tolerance
+  expect_length(br$THETA, 9)
+  expect_true(all(is.finite(br$THETA)))
+  expect_lte(br$N_ITER, fp$N_ITER)
+})
+
+test_that("the Broyden update requires the Joe working scale", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
+  expect_error(
+    fit_ib(d, CONTROL = set_ib_control(UPDATE = "broyden")),
+    "Joe"
+  )
+})
+
+test_that("the Levenberg-Marquardt update solves the same root", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
+  # like Broyden, LM needs the unconstrained Joe scale
+  expect_error(
+    fit_ib(d, CONTROL = set_ib_control(UPDATE = "lm")),
+    "Joe"
+  )
+  f <- fit_ib(
+    d, WORKPAR = "Joe", SEEDS = 1:10,
+    CONTROL = set_ib_control(H = 10, MAX_ITER = 8, STEP = 0.3, UPDATE = "lm")
+  )
+  expect_length(f$THETA, 9)
+  expect_true(all(is.finite(f$THETA)))
+  expect_true(f$STOP %in% c("tol", "stall", "maxit", "singular"))
+  # the gain ratio records damping on accepted iterations
+  expect_length(f$LAMBDA, f$N_ITER)
+  expect_true(any(is.finite(f$LAMBDA)))
+  # LM reduces the Hotelling statistic below its value at the starting point
+  expect_lte(f$RESIDUAL, f$PROGRESS[1])
+})
+
+test_that("NCORES > 1 refuses to run over a pre-existing pool", {
+  skip_if_not_installed("mirai")
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
+  mirai::daemons(1)
+  on.exit(mirai::daemons(0), add = TRUE)
+  expect_error(
+    fit_ib(d, CONTROL = set_ib_control(H = 20, NCORES = 2)),
+    "Tear down"
+  )
+})
+
+test_that("NCORES > 1 over mirai matches the serial fit", {
+  skip_if_not_installed("mirai")
+  # daemons are fresh R processes, so accmeta must be installed for them to load
+  skip_if_not(
+    "accmeta" %in% rownames(utils::installed.packages()),
+    "accmeta must be installed for mirai daemons"
+  )
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
+  ctrl <- function(ncores) {
+    set_ib_control(H = 20, MAX_ITER = 3, NCORES = ncores)
+  }
+  ser <- fit_ib(d, WORKPAR = "Joe", SEEDS = 1:20, CONTROL = ctrl(1))
+  par <- fit_ib(d, WORKPAR = "Joe", SEEDS = 1:20, CONTROL = ctrl(2))
+  expect_equal(par$THETA, ser$THETA)
+  expect_equal(par$PATH, ser$PATH)
+  expect_identical(mirai::status()$connections, 0L) # fit_ib tore its pool down
+})
+
+test_that("the Levenberg-Marquardt update damps a runaway step", {
+  sd_true <- sqrt(c(1.2, 0.5, 0.25))
+  cor_true <- matrix(c(1, -0.6, 0.7, -0.6, 1, -0.7, 0.7, -0.7, 1), 3, 3)
+  tv <- list2theta(list(
+    MU = c(2.94, -2.20, -0.405),
+    SIGMA = diag(sd_true) %*% cor_true %*% diag(sd_true)
+  ))
+  set.seed(123)
+  ss <- sample(40:200, 15, TRUE)
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, tv, ss), CC = 0.5)
+  f <- suppressWarnings(
+    fit_ib(
+      d, WORKPAR = "Joe", SEEDS = 1:20,
+      CONTROL = set_ib_control(H = 20, MAX_ITER = 6, STEP = 1, UPDATE = "lm"),
+      PRIOR = set_prior(4)
+    )
+  )
+  expect_true(all(is.finite(f$THETA)))
+  expect_true(f$STOP %in% c("tol", "stall", "maxit", "singular"))
 })
 
 test_that("STOP says which rule ended it", {
   set.seed(1)
   d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
 
+  # alpha near 1 makes the test essentially unrejectable-from -> runs to budget
   out_of_budget <- fit_ib(
-    d, CONTROL = set_ib_control(H = 10, MAX_ITER = 3, TOL = 1e-12), SEEDS = 1:10
+    d, CONTROL = set_ib_control(H = 30, MAX_ITER = 3, TOL = 0.999), SEEDS = 1:30
   )
   expect_identical(out_of_budget$STOP, "maxit")
   expect_false(out_of_budget$CONVERGED)
 
+  # alpha -> 0 never rejects H0, so the test is met at the first iterate
   met <- fit_ib(
-    d, CONTROL = set_ib_control(H = 10, MAX_ITER = 3, TOL = 1e3), SEEDS = 1:10
+    d, CONTROL = set_ib_control(H = 30, MAX_ITER = 3, TOL = 1e-20), SEEDS = 1:30
   )
   expect_identical(met$STOP, "tol")
   expect_true(met$CONVERGED)
   expect_identical(met$N_ITER, 1L)
 
-  # flat rule needs eleven iterations
+  # a near-1 alpha ends in stall or maxit
   flat <- fit_ib(
-    d, CONTROL = set_ib_control(H = 10, MAX_ITER = 25, TOL = 1e-12), SEEDS = 1:10
+    d, CONTROL = set_ib_control(H = 30, MAX_ITER = 25, TOL = 0.999), SEEDS = 1:30
   )
-  expect_true(flat$STOP %in% c("plateau", "maxit"))
-  if (identical(flat$STOP, "plateau")) expect_gt(flat$N_ITER, 10L)
+  expect_true(flat$STOP %in% c("stall", "maxit"))
+  expect_false(flat$CONVERGED)
 })
 
 test_that("a failed fit is redrawn, not dropped", {
@@ -158,5 +263,5 @@ test_that("a runaway update is halved instead of crashing", {
   )
   expect_true(all(is.finite(f$THETA)))
   expect_gt(sum(f$HALVED), 0)
-  expect_true(f$STOP %in% c("tol", "plateau", "maxit", "singular"))
+  expect_true(f$STOP %in% c("tol", "stall", "maxit", "singular"))
 })

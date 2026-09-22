@@ -7,11 +7,11 @@
 set_ib_control(
   H = 100,
   MAX_ITER = 25,
-  TOL = 0.2/sqrt(H),
+  TOL = 0.5,
   STEP = 0.1,
-  PLATEAU = TRUE,
-  PLATEAU_PVALUE = 0.2,
-  PLATEAU_WINDOW = 11L
+  PATIENCE = 5L,
+  UPDATE = c("fixedpoint", "broyden", "lm"),
+  NCORES = 1L
 )
 }
 \arguments{
@@ -19,20 +19,21 @@ set_ib_control(
 
 \item{MAX_ITER}{Maximum number of iterations.}
 
-\item{TOL}{Convergence tolerance on \eqn{\max_j |gap_j|}. Defaults to
-\eqn{0.2/\sqrt{H}}, so it tracks the Monte-Carlo noise of the \code{H} resamples.}
+\item{TOL}{Significance level \eqn{\alpha \in (0, 1)} of the Hotelling convergence test.}
 
 \item{STEP}{Damping factor \eqn{\gamma \in (0, 1]}.}
 
-\item{PLATEAU}{Whether to stop early on a flat progress curve. When \code{FALSE}
-the plateau rule is disabled and only \code{TOL}/\code{MAX_ITER} end the recursion.}
+\item{PATIENCE}{Stop after this many iterations with no improvement in the
+best convergence statistic (returning the best iterate seen).}
 
-\item{PLATEAU_PVALUE}{Slope p-value threshold of the plateau rule.}
+\item{UPDATE}{Update rule for the recursion: \code{"fixedpoint"} (default), \code{"broyden"}, for
+quasi-Newton step, or \code{"lm"}, for Levenberg--Marquardt step.}
 
-\item{PLATEAU_WINDOW}{Number of most-recent iterations considered in plateau rule.}
+\item{NCORES}{Number of cores to be passed to \code{\link[mirai:daemons]{mirai::daemons()}}. Default \code{1} runs serially.
+Values \verb{> 1} leads to parallel computations across the H simulated datasets at each iteration.}
 }
 \value{
-An object of class \code{accmeta_ib_control}to be passed to \code{\link[=fit_ib]{fit_ib()}}.
+An object of class \code{accmeta_ib_control} to be passed to \code{\link[=fit_ib]{fit_ib()}} via \code{CONTROL} argumnet.
 }
 \description{
 Build the \code{CONTROL} object passed to \code{\link[=fit_ib]{fit_ib()}}.

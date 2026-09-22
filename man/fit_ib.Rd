@@ -28,33 +28,10 @@ or \code{"Joe"} based on unconstrained partial correlations.}
 \code{NULL}, drawn once and then held fixed.}
 }
 \value{
-A list with components \code{THETA}, the bias-corrected estimate;
-\code{PI_HAT}, the uncorrected TLMM estimate; \code{N_ITER}, the number of iterations
-used; \code{CONVERGED}, whether the tolerance was met; \code{STOP}, which rule ended
-the recursion, one of \code{"tol"}, \code{"plateau"}, \code{"maxit"} or \code{"singular"};
-\code{RESIDUAL}, the largest absolute departure from the matching
-equation at the last iteration; \code{PROGRESS}, that departure at every
-iteration; \code{PATH}, the iterates, one row per step; \code{FAIL}, the number of
-simulated fits that failed every retry, per iteration; \code{DEGEN}, the
-proportion of the \code{H} simulated fits whose \eqn{\Sigma_3} was degenerate,
-per iteration; \code{HALVED}, the number of step halvings per iteration;
-\code{SEEDS}; \code{PRIOR}, the prior used; and \code{CONTROL}, the control object used.
+An \code{accmeta_ib} object
 }
 \description{
-Estimates from TLMM estimates might contain bias from up to three distinct sources:
-\enumerate{
-\item within-study normal approximation; 2) continuity correction; 3) Wishart prior.
-Iterative bootstrap removes them all.
-}
-}
-\details{
-The \code{H} seeds are drawn once and reused for every \eqn{\theta} and at every
-iteration. The state of the random number generator is restored on exit.
-
-The \code{PRIOR} and the continuity correction recorded on \code{DATA} reach \eqn{\hat\pi}
-and every simulated fit.
-
-The default \code{PRIOR} is the one shared by \code{\link[=fit_tlmm]{fit_tlmm()}} and \code{\link[=fit_tglmm]{fit_tglmm()}}.
+Iterative bootstrap bias correction for TLMM
 }
 \examples{
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)

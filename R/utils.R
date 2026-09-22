@@ -159,15 +159,16 @@ joe2theta <- function(JOEPAR) {
 #'
 #' @param H Number of datasets simulated per iteration.
 #' @param MAX_ITER Maximum number of iterations.
-#' @param TOL Convergence tolerance on \eqn{\max_j |gap_j|}. Defaults to
-#'   \eqn{0.2/\sqrt{H}}, so it tracks the Monte-Carlo noise of the `H` resamples.
+#' @param TOL Significance level \eqn{\alpha \in (0, 1)} of the Hotelling convergence test.
 #' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
-#' @param PLATEAU Whether to stop early on a flat progress curve. When `FALSE`
-#'   the plateau rule is disabled and only `TOL`/`MAX_ITER` end the recursion.
-#' @param PLATEAU_PVALUE Slope p-value threshold of the plateau rule.
-#' @param PLATEAU_WINDOW Number of most-recent iterations considered in plateau rule.
+#' @param PATIENCE Stop after this many iterations with no improvement in the
+#'   best convergence statistic (returning the best iterate seen).
+#' @param UPDATE Update rule for the recursion: `"fixedpoint"` (default), `"broyden"`, for
+#'   quasi-Newton step, or `"lm"`, for Levenberg--Marquardt step.
+#' @param NCORES Number of cores to be passed to [mirai::daemons()]. Default `1` runs serially.
+#'   Values `> 1` leads to parallel computations across the H simulated datasets at each iteration.
 #'
-#' @return An object of class `accmeta_ib_control`to be passed to [fit_ib()].
+#' @return An object of class `accmeta_ib_control` to be passed to [fit_ib()] via `CONTROL` argumnet.
 #'
 #' @seealso [fit_ib()].
 #'
@@ -178,12 +179,13 @@ joe2theta <- function(JOEPAR) {
 set_ib_control <- function(
   H = 100,
   MAX_ITER = 25,
-  TOL = 0.2 / sqrt(H),
+  TOL = 0.5,
   STEP = 0.1,
-  PLATEAU = TRUE,
-  PLATEAU_PVALUE = 0.2,
-  PLATEAU_WINDOW = 11L
+  PATIENCE = 5L,
+  UPDATE = c("fixedpoint", "broyden", "lm"),
+  NCORES = 1L
 ) {
+  UPDATE <- match.arg(UPDATE)
   stopifnot(
     is.numeric(H),
     length(H) == 1,
@@ -194,28 +196,26 @@ set_ib_control <- function(
     is.numeric(TOL),
     length(TOL) == 1,
     TOL > 0,
+    TOL < 1,
     is.numeric(STEP),
     length(STEP) == 1,
     STEP > 0,
     STEP <= 1,
-    is.logical(PLATEAU),
-    length(PLATEAU) == 1,
-    is.numeric(PLATEAU_PVALUE),
-    length(PLATEAU_PVALUE) == 1,
-    PLATEAU_PVALUE > 0,
-    PLATEAU_PVALUE < 1,
-    is.numeric(PLATEAU_WINDOW),
-    length(PLATEAU_WINDOW) == 1,
-    PLATEAU_WINDOW >= 3
+    is.numeric(PATIENCE),
+    length(PATIENCE) == 1,
+    PATIENCE >= 1,
+    is.numeric(NCORES),
+    length(NCORES) == 1,
+    NCORES >= 1
   )
   out <- list(
     H = H,
     MAX_ITER = MAX_ITER,
     TOL = TOL,
     STEP = STEP,
-    PLATEAU = PLATEAU,
-    PLATEAU_PVALUE = PLATEAU_PVALUE,
-    PLATEAU_WINDOW = PLATEAU_WINDOW
+    PATIENCE = PATIENCE,
+    UPDATE = UPDATE,
+    NCORES = NCORES
   )
   class(out) <- "accmeta_ib_control"
   return(out)

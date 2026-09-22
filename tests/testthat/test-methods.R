@@ -23,8 +23,9 @@ test_that("coef unpacks the working vector", {
   g <- fit_tglmm(d)
   expect_identical(coef(g), theta2list(g$THETA))
 
-  # the corrected estimate, not the auxiliary
-  b <- fit_ib(d, CONTROL = set_ib_control(H = 10, MAX_ITER = 2), SEEDS = 1:10)
+  # the corrected estimate, not the auxiliary (needs H comfortably above the 9
+  # matched moments for the Hotelling test to have power, else it stops at once)
+  b <- fit_ib(d, CONTROL = set_ib_control(H = 30, MAX_ITER = 10), SEEDS = 1:30)
   expect_identical(coef(b), theta2list(b$THETA))
   expect_false(isTRUE(all.equal(coef(b)$MU, theta2list(b$PI_HAT)$MU)))
 })

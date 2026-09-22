@@ -10,7 +10,8 @@ Authors@R:
     )
 Description: Meta-analysis of diagnostic accuracy in terms of sensitivity, specificity and prevalence.
 License: MIT + file LICENSE
-Suggests: 
+Suggests:
+    mirai,
     testthat (>= 3.0.0)
 LinkingTo:
     RcppEigen,
