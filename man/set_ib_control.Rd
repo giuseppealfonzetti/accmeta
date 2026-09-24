@@ -5,12 +5,17 @@
 \title{Set the control parameters for the iterative bootstrap}
 \usage{
 set_ib_control(
-  H = 100,
-  MAX_ITER = 25,
-  TOL = 0.5,
-  STEP = 0.1,
+  H = 50,
+  MAX_ITER = 100,
+  TOL = NULL,
+  STEP = 0.5,
   PATIENCE = 5L,
   UPDATE = c("fixedpoint", "broyden", "lm"),
+  TERMINATION = c("confidence", "hotelling"),
+  PRECISION = 0.5,
+  BOOST = NULL,
+  BOOST_FACTOR = 2,
+  MAX_H = 1000,
   NCORES = 1L
 )
 }
@@ -19,7 +24,9 @@ set_ib_control(
 
 \item{MAX_ITER}{Maximum number of iterations.}
 
-\item{TOL}{Significance level \eqn{\alpha \in (0, 1)} of the Hotelling convergence test.}
+\item{TOL}{Significance level \eqn{\alpha \in (0, 1)} of the convergence
+test (see \code{TERMINATION}). If \code{NULL}, \code{0.5} for \code{"hotelling"} and \code{0.01}
+for \code{"confidence"}.}
 
 \item{STEP}{Damping factor \eqn{\gamma \in (0, 1]}.}
 
@@ -29,8 +36,24 @@ best convergence statistic (returning the best iterate seen).}
 \item{UPDATE}{Update rule for the recursion: \code{"fixedpoint"} (default), \code{"broyden"}, for
 quasi-Newton step, or \code{"lm"}, for Levenberg--Marquardt step.}
 
+\item{TERMINATION}{Convergence test on the Hotelling \eqn{T^2} statistc constructed from the IB gap:
+\code{"hotelling"} stops when \eqn{H_0: E[gap] = 0} is not rejected;
+\code{"confidence"} (default) stops when the
+\eqn{1 - \alpha} Hotelling confidence ellipsoid of the gap lies inside the
+tolerance region \eqn{\delta^\top \Sigma^{-1} \delta \le} \code{PRECISION},
+with \eqn{\Sigma} the covariance of a single simulated estimate.}
+
+\item{PRECISION}{Squared equivalence margin of the \code{"confidence"} test, in
+squared standard deviations of the estimator.}
+
+\item{BOOST}{If \code{TRUE}, increases \code{H} when the \code{"confidence"} test fails.}
+
+\item{BOOST_FACTOR}{Maximum multiplicative growth of \code{H} when \code{BOOST = TRUE}.}
+
+\item{MAX_H}{Upper bound on \code{H} when \code{BOOST = TRUE}.}
+
 \item{NCORES}{Number of cores to be passed to \code{\link[mirai:daemons]{mirai::daemons()}}. Default \code{1} runs serially.
-Values \verb{> 1} leads to parallel computations across the H simulated datasets at each iteration.}
+Values \verb{> 1} for parallel computations across the H simulated datasets at each iteration.}
 }
 \value{
 An object of class \code{accmeta_ib_control} to be passed to \code{\link[=fit_ib]{fit_ib()}} via \code{CONTROL} argumnet.

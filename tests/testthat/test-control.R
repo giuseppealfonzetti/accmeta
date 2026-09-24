@@ -2,20 +2,45 @@ test_that("set_ib_control stores what it is given and fills the rest", {
   ctrl <- set_ib_control()
   expect_s3_class(ctrl, "accmeta_ib_control")
   expect_named(ctrl, c(
-    "H", "MAX_ITER", "TOL", "STEP", "PATIENCE", "UPDATE", "NCORES"
+    "H", "MAX_ITER", "TOL", "STEP", "PATIENCE", "UPDATE", "TERMINATION",
+    "PRECISION", "BOOST", "BOOST_FACTOR", "MAX_H", "NCORES"
   ))
   # defaults
-  expect_identical(ctrl$H, 100)
-  expect_identical(ctrl$MAX_ITER, 25)
-  expect_identical(ctrl$TOL, 0.5)
-  expect_identical(ctrl$STEP, 0.1)
+  expect_identical(ctrl$H, 50)
+  expect_identical(ctrl$MAX_ITER, 100)
+  expect_identical(ctrl$TOL, 0.01)
+  expect_identical(ctrl$STEP, 0.5)
   expect_identical(ctrl$PATIENCE, 5L)
   expect_identical(ctrl$UPDATE, "fixedpoint")
   expect_identical(ctrl$NCORES, 1L)
+  expect_identical(ctrl$TERMINATION, "confidence")
+  expect_identical(ctrl$PRECISION, 0.5)
+  expect_true(ctrl$BOOST)
+  expect_identical(ctrl$BOOST_FACTOR, 2)
+  expect_identical(ctrl$MAX_H, 1000)
+  # boosting makes ergm's margin reachable: checked at MAX_H, no warning
+  expect_no_warning(set_ib_control(PRECISION = 0.1))
+  # TOL and BOOST defaults depend on the termination rule, explicit ones win
+  hot <- set_ib_control(TERMINATION = "hotelling")
+  expect_identical(hot$TOL, 0.5)
+  expect_false(hot$BOOST)
+  expect_identical(
+    set_ib_control(H = 300, TERMINATION = "confidence")$TOL,
+    0.01
+  )
+  expect_identical(
+    set_ib_control(H = 300, TERMINATION = "confidence", TOL = 0.05)$TOL,
+    0.05
+  )
+  # ergm's margin is out of reach at the default H without boosting
+  expect_warning(
+    set_ib_control(PRECISION = 0.1, BOOST = FALSE),
+    "cannot pass"
+  )
   expect_identical(set_ib_control(UPDATE = "lm")$UPDATE, "lm")
   # a partial call fills the missing options
   expect_identical(set_ib_control(MAX_ITER = 5)$MAX_ITER, 5)
-  expect_identical(set_ib_control(MAX_ITER = 5)$H, 100)
+  expect_identical(set_ib_control(MAX_ITER = 5)$H, 50)
 })
 
 test_that("set_ib_control rejects impossible values", {
@@ -28,6 +53,15 @@ test_that("set_ib_control rejects impossible values", {
   expect_error(set_ib_control(STEP = 0), "STEP > 0")
   expect_error(set_ib_control(PATIENCE = 0), "PATIENCE >= 1")
   expect_error(set_ib_control(UPDATE = "nope"), "should be one of")
+  expect_error(set_ib_control(TERMINATION = "nope"), "should be one of")
+  expect_error(set_ib_control(PRECISION = 0), "PRECISION > 0")
+  expect_error(
+    set_ib_control(TERMINATION = "hotelling", BOOST = TRUE),
+    "TERMINATION == \"confidence\""
+  )
+  expect_error(set_ib_control(BOOST = NA), "isTRUE")
+  expect_error(set_ib_control(H = 100, MAX_H = 50), "MAX_H >= H")
+  expect_error(set_ib_control(BOOST_FACTOR = 1), "BOOST_FACTOR > 1")
   expect_error(set_ib_control(NCORES = "two"), "is.numeric")
   expect_error(set_ib_control(NCORES = 0), "NCORES >= 1")
 })
@@ -42,7 +76,8 @@ test_that("fit_ib wants a control object and runs to budget on unreachable TOL",
   f <- fit_ib(
     d,
     CONTROL = set_ib_control(
-      H = 10, MAX_ITER = 6, TOL = 0.999, PATIENCE = 6
+      H = 10, MAX_ITER = 6, TOL = 0.999, PATIENCE = 6,
+      TERMINATION = "hotelling"
     ),
     SEEDS = 1:10
   )
@@ -50,7 +85,10 @@ test_that("fit_ib wants a control object and runs to budget on unreachable TOL",
   # patience stops early and returns the best-statistic iterate
   g <- fit_ib(
     d,
-    CONTROL = set_ib_control(H = 10, MAX_ITER = 25, TOL = 0.999, PATIENCE = 2),
+    CONTROL = set_ib_control(
+      H = 10, MAX_ITER = 25, TOL = 0.999, PATIENCE = 2,
+      TERMINATION = "hotelling"
+    ),
     SEEDS = 1:10
   )
   expect_identical(g$STOP, "stall")

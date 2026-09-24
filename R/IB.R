@@ -8,9 +8,14 @@
 #'   update: `"PinheiroBates"` (default) based on the log-Cholesky decomposition,
 #'   or `"Joe"` based on unconstrained partial correlations.
 #' @param SEEDS Integer vector of length `H` seeding the simulated datasets. If
-#'   `NULL`, drawn once and then held fixed.
+#'   `NULL`, drawn once and then held fixed. With `BOOST`, the seeds for up to
+#'   `MAX_H` datasets are appended once, before any fit, so serial and parallel
+#'   runs agree; the returned `SEEDS` are the ones used.
 #'
-#' @return An `accmeta_ib` object
+#' @return An `accmeta_ib` object. `STOP` says why the iteration ended: `"tol"`
+#'   (the convergence test passed), `"stall"` (early stop: no improvement for
+#'   `PATIENCE` iterations, or no positive-definite step left, typically when
+#'   the root lies on the boundary) or `"maxit"`. `THETA` is the best iterate.
 #'
 #' @seealso [fit_tlmm()] for the auxiliary estimator, [set_ib_control()] for the
 #'   control settings, and [set_prior()] for the prior specification.
@@ -27,7 +32,7 @@ fit_ib <- function(
   DATA,
   CONTROL = set_ib_control(),
   PRIOR = set_prior(),
-  WORKPAR = c("PinheiroBates", "Joe"),
+  WORKPAR = c("Joe", "PinheiroBates"),
   SEEDS = NULL
 ) {
   # Setup
@@ -47,6 +52,19 @@ fit_ib <- function(
     stopifnot(WORKPAR == "Joe")
   }
 
+  # manage seeds for reproducibility between serial and parallel exec
+  if (is.null(SEEDS)) {
+    SEEDS <- sample.int(.Machine$integer.max, CONTROL$H)
+  }
+
+  if (CONTROL$BOOST) {
+    SEEDS <- c(
+      SEEDS,
+      sample.int(.Machine$integer.max, CONTROL$MAX_H - CONTROL$H)
+    )
+  }
+
+  # setup parallal cluster via mirai package
   use_parallel <- CONTROL$NCORES > 1L
   if (use_parallel) {
     if (!requireNamespace("mirai", quietly = TRUE)) {
@@ -68,9 +86,6 @@ fit_ib <- function(
     )
   }
 
-  if (is.null(SEEDS)) {
-    SEEDS <- sample.int(.Machine$integer.max, CONTROL$H)
-  }
   n_i <- DATA$margins[, "n"]
 
   # initial estimate
@@ -90,6 +105,7 @@ fit_ib <- function(
   se_path <- matrix(NA, CONTROL$MAX_ITER, n_params)
   progress <- rep(NA, CONTROL$MAX_ITER)
   threshold_path <- rep(NA, CONTROL$MAX_ITER)
+  h_path <- rep(NA, CONTROL$MAX_ITER)
 
   # auxiliary quantities
   jacobian <- diag(-1 / CONTROL$STEP, n_params)
@@ -99,12 +115,18 @@ fit_ib <- function(
   damping_growth <- 2
   best_theta <- theta
   best_val <- Inf
+  best_t2 <- Inf
   best_iter <- 0
   converged <- FALSE
   stop_rule <- "maxit"
   filled <- 1
 
   gap_summary <- NULL
+
+  # sample size boosting (confidence termination), as in ergm
+  h <- CONTROL$H
+  gap_last <- NULL
+  not_improved <- rep(FALSE, 4)
 
   # root finding loop
   for (iter in seq_len(CONTROL$MAX_ITER)) {
@@ -113,7 +135,7 @@ fit_ib <- function(
       gap_summary <- ib_gap(
         THETA = theta,
         SEEDS = SEEDS,
-        H = CONTROL$H,
+        H = h,
         N_STUDIES = DATA$n_studies,
         N_I = n_i,
         CC = DATA$CC,
@@ -129,6 +151,7 @@ fit_ib <- function(
     }
 
     # track gap-related quantities
+    h_path[iter] <- h
     gap_path[iter, ] <- gap_summary$GAP
     se_path[iter, ] <- gap_summary$SE
     fail[iter] <- gap_summary$FAIL
@@ -140,7 +163,7 @@ fit_ib <- function(
         "only ",
         gap_summary$H_OK,
         " of ",
-        CONTROL$H,
+        h,
         " simulated fits ",
         "succeeded at iteration ",
         iter,
@@ -152,7 +175,7 @@ fit_ib <- function(
       )
     }
 
-    # add small diagonal constant
+    # add small diagonal constant for stability
     vcov_reg <- gap_summary$V +
       diag(1e-8 * pmax(diag(gap_summary$V), 1e-12), n_params)
 
@@ -162,17 +185,30 @@ fit_ib <- function(
       solve(vcov_reg, gap_summary$GAP)
     ))
 
-    # threshold value under the null hypothesis
-    threshold <- n_params *
-      (gap_summary$H_OK - 1) /
-      (gap_summary$H_OK - n_params) *
-      stats::qf(1 - CONTROL$TOL, n_params, gap_summary$H_OK - n_params)
+    # threshold on t2. Inspired by {ergm} stopping criteria for MCMLE
+    crit <- ib_crit(gap_summary$H_OK, CONTROL$TOL, n_params)
+    threshold <- switch(
+      CONTROL$TERMINATION,
+      hotelling = crit,
+      confidence = gap_summary$H_OK *
+        max(sqrt(CONTROL$PRECISION) - sqrt(crit / gap_summary$H_OK), 0)^2
+    )
 
-    # track t2-related
+    # squared gap in estimator-SD units, comparable across H
+    r2 <- t2 / gap_summary$H_OK
+    if (!is.null(gap_last)) {
+      r2_last <- drop(crossprod(gap_last, solve(vcov_reg, gap_last))) /
+        gap_summary$H_OK
+      not_improved <- c(not_improved[-1], r2 >= r2_last)
+    }
+    gap_last <- gap_summary$GAP
+
+    # track t2-related quantities
     progress[iter] <- t2
     threshold_path[iter] <- threshold
-    if (t2 < best_val) {
-      best_val <- t2
+    if (r2 < best_val) {
+      best_val <- r2
+      best_t2 <- t2
       best_theta <- theta
       best_iter <- iter
     }
@@ -205,7 +241,7 @@ fit_ib <- function(
         DAMPING = damping,
         DAMPING_GROWTH = damping_growth,
         SEEDS = SEEDS,
-        H = CONTROL$H,
+        H = h,
         N_STUDIES = DATA$n_studies,
         N_I = n_i,
         CC = DATA$CC,
@@ -241,10 +277,9 @@ fit_ib <- function(
       }
     )
 
-    # stop by singular reff sigma
+    # no positive-definite step left
     if (is.null(step$THETA)) {
-      stop_rule <- "singular"
-      warning("singular Sigma ", call. = FALSE)
+      stop_rule <- "stall"
       break
     }
 
@@ -253,11 +288,38 @@ fit_ib <- function(
     path[iter + 1, ] <- theta
     filled <- iter + 1L
 
-    # stop by hotelling t2 test
+    # stop by convergence test
     if (t2 <= threshold) {
       converged <- TRUE
       stop_rule <- "tol"
       break
+    }
+
+    # increase H by BOOST_FACTOR when:
+    # 1) T2 inside tolerance region but its confidence region is not;
+    # 2) when updates stall with T2 outside the tolerance region
+    if (CONTROL$BOOST && h < CONTROL$MAX_H) {
+      inside <- r2 < CONTROL$PRECISION
+      boost <- if (inside) {
+        min(
+          crit /
+            (gap_summary$H_OK * (sqrt(CONTROL$PRECISION) - sqrt(r2))^2),
+          CONTROL$BOOST_FACTOR
+        )
+      } else if (sum(not_improved) > 1) {
+        not_improved[] <- FALSE
+        CONTROL$BOOST_FACTOR
+      } else {
+        1
+      }
+      if (boost > 1) {
+        h_new <- min(ceiling(h * boost), CONTROL$MAX_H)
+        h <- h_new
+        gap_summary <- NULL
+        if (inside) {
+          best_iter <- iter
+        }
+      }
     }
 
     # stop by patience on stall updateds
@@ -281,7 +343,7 @@ fit_ib <- function(
     N_ITER = iter,
     CONVERGED = converged,
     STOP = stop_rule,
-    RESIDUAL = best_val,
+    RESIDUAL = best_t2,
     PROGRESS = progress[seq_len(iter)],
     THRESHOLD = threshold_path[seq_len(iter)],
     PATH = path[seq_len(filled), , drop = FALSE],
@@ -292,7 +354,8 @@ fit_ib <- function(
     LAMBDA = damping_path[seq_len(iter)],
     GAP = gap_path[seq_len(iter), , drop = FALSE],
     SE = se_path[seq_len(iter), , drop = FALSE],
-    SEEDS = SEEDS,
+    H = h_path[seq_len(iter)],
+    SEEDS = SEEDS[seq_len(h)],
     PRIOR = PRIOR,
     CONTROL = CONTROL
   )
@@ -300,6 +363,14 @@ fit_ib <- function(
   return(out)
 }
 
+
+# critical value of the Hotelling t2 at level TOL with H draws
+ib_crit <- function(H, TOL, N_PARAMS = 9) {
+  N_PARAMS *
+    (H - 1) /
+    (H - N_PARAMS) *
+    stats::qf(1 - TOL, N_PARAMS, H - N_PARAMS)
+}
 
 # ensure pd reff sigma
 project_pd <- function(THETA, MIN_EIG) {
@@ -401,6 +472,7 @@ ib_gap <- function(
   )
 }
 
+# update with eventual stepsize halvening
 ib_step_fixedpoint <- function(THETA_WORK, GAP, STEP, WORKPAR, MIN_EIG) {
   step <- STEP
   halved <- 0L

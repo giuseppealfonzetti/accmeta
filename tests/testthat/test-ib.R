@@ -32,7 +32,7 @@ test_that("the result carries its path and diagnostics", {
   expect_named(f, c(
     "THETA", "PI_HAT", "N_ITER", "CONVERGED", "STOP", "RESIDUAL",
     "PROGRESS", "THRESHOLD", "PATH", "FAIL", "DEGEN", "HALVED", "STEPSIZE",
-    "LAMBDA", "GAP", "SE", "SEEDS", "PRIOR", "CONTROL"
+    "LAMBDA", "GAP", "SE", "H", "SEEDS", "PRIOR", "CONTROL"
   ))
   expect_length(f$THETA, 9)
   expect_identical(nrow(f$PATH), f$N_ITER + 1L)
@@ -75,7 +75,11 @@ test_that("the Broyden update requires the Joe working scale", {
   set.seed(1)
   d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
   expect_error(
-    fit_ib(d, CONTROL = set_ib_control(UPDATE = "broyden")),
+    fit_ib(
+      d,
+      WORKPAR = "PinheiroBates",
+      CONTROL = set_ib_control(UPDATE = "broyden")
+    ),
     "Joe"
   )
 })
@@ -85,7 +89,11 @@ test_that("the Levenberg-Marquardt update solves the same root", {
   d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
   # like Broyden, LM needs the unconstrained Joe scale
   expect_error(
-    fit_ib(d, CONTROL = set_ib_control(UPDATE = "lm")),
+    fit_ib(
+      d,
+      WORKPAR = "PinheiroBates",
+      CONTROL = set_ib_control(UPDATE = "lm")
+    ),
     "Joe"
   )
   f <- fit_ib(
@@ -94,7 +102,7 @@ test_that("the Levenberg-Marquardt update solves the same root", {
   )
   expect_length(f$THETA, 9)
   expect_true(all(is.finite(f$THETA)))
-  expect_true(f$STOP %in% c("tol", "stall", "maxit", "singular"))
+  expect_true(f$STOP %in% c("tol", "stall", "maxit"))
   # the gain ratio records damping on accepted iterations
   expect_length(f$LAMBDA, f$N_ITER)
   expect_true(any(is.finite(f$LAMBDA)))
@@ -130,6 +138,23 @@ test_that("NCORES > 1 over mirai matches the serial fit", {
   par <- fit_ib(d, WORKPAR = "Joe", SEEDS = 1:20, CONTROL = ctrl(2))
   expect_equal(par$THETA, ser$THETA)
   expect_equal(par$PATH, ser$PATH)
+  # with boosting too: the extra seeds must not depend on NCORES
+  boosted <- function(ncores) {
+    set.seed(7)
+    fit_ib(
+      d, SEEDS = 1:30,
+      CONTROL = set_ib_control(
+        H = 30, MAX_ITER = 6, STEP = 1, PRECISION = 1, MAX_H = 120,
+        PATIENCE = 6, NCORES = ncores
+      )
+    )
+  }
+  bs <- boosted(1)
+  bp <- boosted(2)
+  expect_gt(max(bs$H), 30)
+  expect_identical(bp$H, bs$H)
+  expect_identical(bp$SEEDS, bs$SEEDS)
+  expect_equal(bp$PATH, bs$PATH)
   expect_identical(mirai::status()$connections, 0L) # fit_ib tore its pool down
 })
 
@@ -152,7 +177,7 @@ test_that("the Levenberg-Marquardt update damps a runaway step", {
     )
   )
   expect_true(all(is.finite(f$THETA)))
-  expect_true(f$STOP %in% c("tol", "stall", "maxit", "singular"))
+  expect_true(f$STOP %in% c("tol", "stall", "maxit"))
 })
 
 test_that("STOP says which rule ended it", {
@@ -161,25 +186,105 @@ test_that("STOP says which rule ended it", {
 
   # alpha near 1 makes the test essentially unrejectable-from -> runs to budget
   out_of_budget <- fit_ib(
-    d, CONTROL = set_ib_control(H = 30, MAX_ITER = 3, TOL = 0.999), SEEDS = 1:30
+    d, CONTROL = set_ib_control(
+      H = 30, MAX_ITER = 3, TOL = 0.999, TERMINATION = "hotelling"
+    ), SEEDS = 1:30
   )
   expect_identical(out_of_budget$STOP, "maxit")
   expect_false(out_of_budget$CONVERGED)
 
   # alpha -> 0 never rejects H0, so the test is met at the first iterate
   met <- fit_ib(
-    d, CONTROL = set_ib_control(H = 30, MAX_ITER = 3, TOL = 1e-20), SEEDS = 1:30
+    d, CONTROL = set_ib_control(
+      H = 30, MAX_ITER = 3, TOL = 1e-20, TERMINATION = "hotelling"
+    ), SEEDS = 1:30
   )
   expect_identical(met$STOP, "tol")
   expect_true(met$CONVERGED)
   expect_identical(met$N_ITER, 1L)
 
-  # a near-1 alpha ends in stall or maxit
+  # a near-1 alpha with a slow step ends in stall or maxit
   flat <- fit_ib(
-    d, CONTROL = set_ib_control(H = 30, MAX_ITER = 25, TOL = 0.999), SEEDS = 1:30
+    d, CONTROL = set_ib_control(
+      H = 30, MAX_ITER = 25, TOL = 0.999, STEP = 0.1,
+      TERMINATION = "hotelling"
+    ), SEEDS = 1:30
   )
   expect_true(flat$STOP %in% c("stall", "maxit"))
   expect_false(flat$CONVERGED)
+})
+
+test_that("confidence termination is ergm's ellipsoid inclusion test", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
+  run <- function(prec) {
+    fit_ib(
+      d,
+      CONTROL = set_ib_control(
+        H = 30, MAX_ITER = 1, TERMINATION = "confidence", PRECISION = prec
+      ),
+      SEEDS = 1:30
+    )
+  }
+  # a wide margin: threshold is the squared distance to the region boundary
+  f <- run(10)
+  h_ok <- 30 - f$FAIL[1]
+  crit <- 9 * (h_ok - 1) / (h_ok - 9) * qf(0.99, 9, h_ok - 9)
+  expect_equal(f$THRESHOLD[1], h_ok * (sqrt(10) - sqrt(crit / h_ok))^2)
+  # the equivalent ergm check: T2 distance to the boundary beats crit
+  r <- sqrt(f$PROGRESS[1] / h_ok)
+  expect_identical(f$STOP == "tol", r < sqrt(10) && h_ok * (sqrt(10) - r)^2 > crit)
+  # a margin inside the confidence radius can never be met
+  tight <- suppressWarnings(run(1))
+  expect_identical(tight$THRESHOLD[1], 0)
+  expect_false(tight$CONVERGED)
+})
+
+test_that("BOOST grows H up to MAX_H and extends the seeds", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
+  # PRECISION = 1 cannot pass at H = 30 but can at H = 120; STEP = 1 brings
+  # the gap inside the tolerance region, where each failed test boosts H
+  f <- fit_ib(
+    d,
+    CONTROL = set_ib_control(
+      H = 30, MAX_ITER = 6, STEP = 1, TERMINATION = "confidence",
+      PRECISION = 1, BOOST = TRUE, MAX_H = 120, PATIENCE = 6
+    ),
+    SEEDS = 1:30
+  )
+  expect_length(f$H, f$N_ITER)
+  expect_identical(f$H[1], 30)
+  expect_false(is.unsorted(f$H))
+  expect_gt(max(f$H), 30)
+  expect_lte(max(f$H), 120)
+  expect_identical(f$SEEDS[1:30], 1:30)
+  # the returned seeds are exactly the ones used
+  expect_length(f$SEEDS, tail(f$H, 1))
+  expect_true(f$CONVERGED)
+  # a 10% factor: each boost grows H by at most ceiling(1.1 * H)
+  slow <- fit_ib(
+    d,
+    CONTROL = set_ib_control(
+      H = 30, MAX_ITER = 6, STEP = 1, TERMINATION = "confidence",
+      PRECISION = 1, BOOST = TRUE, BOOST_FACTOR = 1.1, MAX_H = 120,
+      PATIENCE = 6
+    ),
+    SEEDS = 1:30
+  )
+  expect_gt(max(slow$H), 30)
+  expect_true(all(tail(slow$H, -1) <= ceiling(1.1 * head(slow$H, -1))))
+  # without BOOST, H stays put
+  g <- suppressWarnings(fit_ib(
+    d,
+    CONTROL = set_ib_control(
+      H = 30, MAX_ITER = 2, TERMINATION = "confidence", PRECISION = 1,
+      BOOST = FALSE
+    ),
+    SEEDS = 1:30
+  ))
+  expect_identical(g$H, c(30, 30))
+  expect_identical(g$SEEDS, 1:30)
 })
 
 test_that("a failed fit is redrawn, not dropped", {
@@ -263,5 +368,5 @@ test_that("a runaway update is halved instead of crashing", {
   )
   expect_true(all(is.finite(f$THETA)))
   expect_gt(sum(f$HALVED), 0)
-  expect_true(f$STOP %in% c("tol", "stall", "maxit", "singular"))
+  expect_true(f$STOP %in% c("tol", "stall", "maxit"))
 })

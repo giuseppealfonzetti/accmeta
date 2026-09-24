@@ -159,14 +159,27 @@ joe2theta <- function(JOEPAR) {
 #'
 #' @param H Number of datasets simulated per iteration.
 #' @param MAX_ITER Maximum number of iterations.
-#' @param TOL Significance level \eqn{\alpha \in (0, 1)} of the Hotelling convergence test.
+#' @param TOL Significance level \eqn{\alpha \in (0, 1)} of the convergence
+#'   test (see `TERMINATION`). If `NULL`, `0.5` for `"hotelling"` and `0.01`
+#'   for `"confidence"`.
 #' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
 #' @param PATIENCE Stop after this many iterations with no improvement in the
 #'   best convergence statistic (returning the best iterate seen).
 #' @param UPDATE Update rule for the recursion: `"fixedpoint"` (default), `"broyden"`, for
 #'   quasi-Newton step, or `"lm"`, for Levenberg--Marquardt step.
+#' @param TERMINATION Convergence test on the Hotelling \eqn{T^2} statistc constructed from the IB gap:
+#'   `"hotelling"` stops when \eqn{H_0: E[gap] = 0} is not rejected;
+#'   `"confidence"` (default) stops when the
+#'   \eqn{1 - \alpha} Hotelling confidence ellipsoid of the gap lies inside the
+#'   tolerance region \eqn{\delta^\top \Sigma^{-1} \delta \le} `PRECISION`,
+#'   with \eqn{\Sigma} the covariance of a single simulated estimate.
+#' @param PRECISION Squared equivalence margin of the `"confidence"` test, in
+#'   squared standard deviations of the estimator.
+#' @param BOOST If `TRUE`, increases `H` when the `"confidence"` test fails.
+#' @param BOOST_FACTOR Maximum multiplicative growth of `H` when `BOOST = TRUE`.
+#' @param MAX_H Upper bound on `H` when `BOOST = TRUE`.
 #' @param NCORES Number of cores to be passed to [mirai::daemons()]. Default `1` runs serially.
-#'   Values `> 1` leads to parallel computations across the H simulated datasets at each iteration.
+#'   Values `> 1` for parallel computations across the H simulated datasets at each iteration.
 #'
 #' @return An object of class `accmeta_ib_control` to be passed to [fit_ib()] via `CONTROL` argumnet.
 #'
@@ -177,15 +190,27 @@ joe2theta <- function(JOEPAR) {
 #'
 #' @export
 set_ib_control <- function(
-  H = 100,
-  MAX_ITER = 25,
-  TOL = 0.5,
-  STEP = 0.1,
+  H = 50,
+  MAX_ITER = 100,
+  TOL = NULL,
+  STEP = 0.5,
   PATIENCE = 5L,
   UPDATE = c("fixedpoint", "broyden", "lm"),
+  TERMINATION = c("confidence", "hotelling"),
+  PRECISION = 0.5,
+  BOOST = NULL,
+  BOOST_FACTOR = 2,
+  MAX_H = 1000,
   NCORES = 1L
 ) {
   UPDATE <- match.arg(UPDATE)
+  TERMINATION <- match.arg(TERMINATION)
+  if (is.null(TOL)) {
+    TOL <- if (TERMINATION == "hotelling") 0.5 else 0.01
+  }
+  if (is.null(BOOST)) {
+    BOOST <- TERMINATION == "confidence"
+  }
   stopifnot(
     is.numeric(H),
     length(H) == 1,
@@ -204,10 +229,38 @@ set_ib_control <- function(
     is.numeric(PATIENCE),
     length(PATIENCE) == 1,
     PATIENCE >= 1,
+    is.numeric(PRECISION),
+    length(PRECISION) == 1,
+    PRECISION > 0,
+    isTRUE(BOOST) || isFALSE(BOOST),
+    !BOOST || TERMINATION == "confidence",
+    is.numeric(BOOST_FACTOR),
+    length(BOOST_FACTOR) == 1,
+    BOOST_FACTOR > 1,
+    is.numeric(MAX_H),
+    length(MAX_H) == 1,
+    MAX_H >= H,
     is.numeric(NCORES),
     length(NCORES) == 1,
     NCORES >= 1
   )
+  h_top <- if (BOOST) MAX_H else H
+  if (
+    TERMINATION == "confidence" &&
+      h_top > 9 &&
+      h_top * PRECISION <= ib_crit(h_top, TOL)
+  ) {
+    warning(
+      "the confidence test cannot pass with H = ",
+      h_top,
+      " and PRECISION = ",
+      PRECISION,
+      "; increase either (H * PRECISION must exceed ",
+      signif(ib_crit(h_top, TOL), 3),
+      ").",
+      call. = FALSE
+    )
+  }
   out <- list(
     H = H,
     MAX_ITER = MAX_ITER,
@@ -215,6 +268,11 @@ set_ib_control <- function(
     STEP = STEP,
     PATIENCE = PATIENCE,
     UPDATE = UPDATE,
+    TERMINATION = TERMINATION,
+    PRECISION = PRECISION,
+    BOOST = BOOST,
+    BOOST_FACTOR = BOOST_FACTOR,
+    MAX_H = MAX_H,
     NCORES = NCORES
   )
   class(out) <- "accmeta_ib_control"

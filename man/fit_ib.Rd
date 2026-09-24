@@ -8,7 +8,7 @@ fit_ib(
   DATA,
   CONTROL = set_ib_control(),
   PRIOR = set_prior(),
-  WORKPAR = c("PinheiroBates", "Joe"),
+  WORKPAR = c("Joe", "PinheiroBates"),
   SEEDS = NULL
 )
 }
@@ -25,10 +25,15 @@ update: \code{"PinheiroBates"} (default) based on the log-Cholesky decomposition
 or \code{"Joe"} based on unconstrained partial correlations.}
 
 \item{SEEDS}{Integer vector of length \code{H} seeding the simulated datasets. If
-\code{NULL}, drawn once and then held fixed.}
+\code{NULL}, drawn once and then held fixed. With \code{BOOST}, the seeds for up to
+\code{MAX_H} datasets are appended once, before any fit, so serial and parallel
+runs agree; the returned \code{SEEDS} are the ones used.}
 }
 \value{
-An \code{accmeta_ib} object
+An \code{accmeta_ib} object. \code{STOP} says why the iteration ended: \code{"tol"}
+(the convergence test passed), \code{"stall"} (early stop: no improvement for
+\code{PATIENCE} iterations, or no positive-definite step left, typically when
+the root lies on the boundary) or \code{"maxit"}. \code{THETA} is the best iterate.
 }
 \description{
 Iterative bootstrap bias correction for TLMM
