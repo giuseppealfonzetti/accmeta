@@ -36,9 +36,9 @@ sim_data <- function(N_STUDIES, THETA, N_I) {
   U <- matrix(stats::rnorm(3 * N_STUDIES), N_STUDIES, 3) %*%
     chol(par$SIGMA) +
     rep(par$MU, each = N_STUDIES)
-  n1 <- stats::rbinom(N_STUDIES, N_I, stats::plogis(U[, 3]))
-  n11 <- stats::rbinom(N_STUDIES, n1, stats::plogis(U[, 1]))
-  n10 <- stats::rbinom(N_STUDIES, N_I - n1, stats::plogis(U[, 2]))
+  n1 <- stats::qbinom(stats::runif(N_STUDIES), N_I, stats::plogis(U[, 3]))
+  n11 <- stats::qbinom(stats::runif(N_STUDIES), n1, stats::plogis(U[, 1]))
+  n10 <- stats::qbinom(stats::runif(N_STUDIES), N_I - n1, stats::plogis(U[, 2]))
   out <- cbind(n11 = n11, n10 = n10, n01 = n1 - n11, n00 = N_I - n1 - n10)
   return(out)
 }
@@ -77,7 +77,7 @@ sim_data <- function(N_STUDIES, THETA, N_I) {
 #'
 #' @examples
 #' th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
-#' set.seed(4)
+#' set.seed(2)
 #' x <- sim_data(5, th, rep(100, 5))
 #' d <- set_meta_data(x)
 #' d

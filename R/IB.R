@@ -13,9 +13,8 @@
 #'   runs agree; the returned `SEEDS` are the ones used.
 #'
 #' @return An `accmeta_ib` object. `STOP` says why the iteration ended: `"tol"`
-#'   (the convergence test passed), `"stall"` (early stop: no improvement for
-#'   `PATIENCE` iterations, or no positive-definite step left, typically when
-#'   the root lies on the boundary) or `"maxit"`. `THETA` is the best iterate.
+#'   (the convergence test passed), `"boundary"` (no valid generative model available for next iteration),
+#'   `"stall"` (no improvement for `PATIENCE` iterations) or `"maxit"`.
 #'
 #' @seealso [fit_tlmm()] for the auxiliary estimator, [set_ib_control()] for the
 #'   control settings, and [set_prior()] for the prior specification.
@@ -38,6 +37,8 @@ fit_ib <- function(
   # Setup
   min_eig <- 1e-3
   n_params <- 9
+  # run the whole budget: no convergence, stall or boundary stops
+  budget_only <- CONTROL$TERMINATION == "max_iter"
 
   WORKPAR <- match.arg(WORKPAR)
   stopifnot(
@@ -47,10 +48,6 @@ fit_ib <- function(
     inherits(CONTROL, "accmeta_ib_control"),
     is.null(SEEDS) || (is.numeric(SEEDS) && length(SEEDS) == CONTROL$H)
   )
-
-  if (CONTROL$UPDATE %in% c("broyden", "lm")) {
-    stopifnot(WORKPAR == "Joe")
-  }
 
   # manage seeds for reproducibility between serial and parallel exec
   if (is.null(SEEDS)) {
@@ -100,7 +97,6 @@ fit_ib <- function(
   degen <- numeric(CONTROL$MAX_ITER)
   halved <- integer(CONTROL$MAX_ITER)
   stepsize <- rep(NA, CONTROL$MAX_ITER)
-  damping_path <- rep(NA, CONTROL$MAX_ITER)
   gap_path <- matrix(NA, CONTROL$MAX_ITER, n_params)
   se_path <- matrix(NA, CONTROL$MAX_ITER, n_params)
   progress <- rep(NA, CONTROL$MAX_ITER)
@@ -108,11 +104,6 @@ fit_ib <- function(
   h_path <- rep(NA, CONTROL$MAX_ITER)
 
   # auxiliary quantities
-  jacobian <- diag(-1 / CONTROL$STEP, n_params)
-  theta_work_prev <- NULL
-  gap_prev <- NULL
-  damping <- 1e-3 * max(diag(crossprod(jacobian)))
-  damping_growth <- 2
   best_theta <- theta
   best_val <- Inf
   best_t2 <- Inf
@@ -150,6 +141,8 @@ fit_ib <- function(
       stop("all simulated TLMM fits failed at iteration ", iter, call. = FALSE)
     }
 
+    h_ok <- gap_summary$H_OK
+
     # track gap-related quantities
     h_path[iter] <- h
     gap_path[iter, ] <- gap_summary$GAP
@@ -158,10 +151,10 @@ fit_ib <- function(
     degen[iter] <- gap_summary$DEGEN
 
     # check enough simulations are ok
-    if (gap_summary$H_OK <= n_params) {
+    if (h_ok <= n_params) {
       stop(
         "only ",
-        gap_summary$H_OK,
+        h_ok,
         " of ",
         h,
         " simulated fits ",
@@ -186,19 +179,19 @@ fit_ib <- function(
     ))
 
     # threshold on t2. Inspired by {ergm} stopping criteria for MCMLE
-    crit <- ib_crit(gap_summary$H_OK, CONTROL$TOL, n_params)
+    crit <- ib_crit(h_ok, CONTROL$TOL, n_params)
     threshold <- switch(
       CONTROL$TERMINATION,
       hotelling = crit,
-      confidence = gap_summary$H_OK *
-        max(sqrt(CONTROL$PRECISION) - sqrt(crit / gap_summary$H_OK), 0)^2
+      confidence = (h_ok - 1) *
+        max(sqrt(CONTROL$PRECISION) - sqrt(crit / (h_ok - 1)), 0)^2,
+      max_iter = NA_real_
     )
 
-    # squared gap in estimator-SD units, comparable across H
-    r2 <- t2 / gap_summary$H_OK
+    r2 <- t2 / (h_ok - 1)
     if (!is.null(gap_last)) {
       r2_last <- drop(crossprod(gap_last, solve(vcov_reg, gap_last))) /
-        gap_summary$H_OK
+        (h_ok - 1)
       not_improved <- c(not_improved[-1], r2 >= r2_last)
     }
     gap_last <- gap_summary$GAP
@@ -215,71 +208,22 @@ fit_ib <- function(
 
     # update estimates
     theta_work <- if (WORKPAR == "Joe") theta2joe(theta) else theta
-    step <- switch(
-      CONTROL$UPDATE,
-      fixedpoint = ib_step_fixedpoint(
-        THETA_WORK = theta_work,
-        GAP = gap_summary$GAP,
-        STEP = CONTROL$STEP,
-        WORKPAR = WORKPAR,
-        MIN_EIG = min_eig
-      ),
-      broyden = ib_step_broyden(
-        THETA_WORK = theta_work,
-        GAP = gap_summary$GAP,
-        JACOBIAN = jacobian,
-        THETA_WORK_PREV = theta_work_prev,
-        GAP_PREV = gap_prev,
-        STEP = CONTROL$STEP,
-        WORKPAR = WORKPAR,
-        MIN_EIG = min_eig
-      ),
-      lm = ib_step_lm(
-        THETA_WORK = theta_work,
-        GAP = gap_summary$GAP,
-        JACOBIAN = jacobian,
-        DAMPING = damping,
-        DAMPING_GROWTH = damping_growth,
-        SEEDS = SEEDS,
-        H = h,
-        N_STUDIES = DATA$n_studies,
-        N_I = n_i,
-        CC = DATA$CC,
-        PRIOR = PRIOR,
-        USE_PARALLEL = use_parallel,
-        PI_HAT_WORK = pi_hat_work,
-        WORKPAR = WORKPAR,
-        MIN_EIG = min_eig
-      )
+    step <- ib_step_fixedpoint(
+      THETA_WORK = theta_work,
+      GAP = gap_summary$GAP,
+      STEP = CONTROL$STEP,
+      WORKPAR = WORKPAR,
+      MIN_EIG = min_eig
     )
 
     # store update-realted quantities
     halved[iter] <- step$HALVED
-    switch(
-      CONTROL$UPDATE,
-      fixedpoint = {
-        stepsize[iter] <- step$STEPSIZE
-        gap_summary <- NULL
-      },
-      broyden = {
-        stepsize[iter] <- step$STEPSIZE
-        jacobian <- step$JACOBIAN
-        theta_work_prev <- step$THETA_WORK_PREV
-        gap_prev <- step$GAP_PREV
-        gap_summary <- NULL
-      },
-      lm = {
-        damping_path[iter] <- step$DAMPING
-        jacobian <- step$JACOBIAN
-        damping <- step$DAMPING
-        damping_growth <- step$DAMPING_GROWTH
-        gap_summary <- step$GAP_SUMMARY
-      }
-    )
+    stepsize[iter] <- step$STEPSIZE
+    gap_summary <- NULL
 
     # no positive-definite step left
     if (is.null(step$THETA)) {
-      stop_rule <- "stall"
+      stop_rule <- "boundary"
       break
     }
 
@@ -289,9 +233,23 @@ fit_ib <- function(
     filled <- iter + 1L
 
     # stop by convergence test
-    if (t2 <= threshold) {
+    if (!budget_only && t2 < threshold) {
+      best_theta <- path[iter, ]
+      best_t2 <- t2
       converged <- TRUE
       stop_rule <- "tol"
+      break
+    }
+
+    # root on the boundary
+    if (
+      !budget_only &&
+        iter > 1 &&
+        halved[iter] > 0 &&
+        halved[iter - 1] > 0 &&
+        best_iter < iter
+    ) {
+      stop_rule <- "boundary"
       break
     }
 
@@ -303,7 +261,7 @@ fit_ib <- function(
       boost <- if (inside) {
         min(
           crit /
-            (gap_summary$H_OK * (sqrt(CONTROL$PRECISION) - sqrt(r2))^2),
+            ((h_ok - 1) * (sqrt(CONTROL$PRECISION) - sqrt(r2))^2),
           CONTROL$BOOST_FACTOR
         )
       } else if (sum(not_improved) > 1) {
@@ -323,7 +281,7 @@ fit_ib <- function(
     }
 
     # stop by patience on stall updateds
-    if (iter - best_iter >= CONTROL$PATIENCE) {
+    if (!budget_only && iter - best_iter >= CONTROL$PATIENCE) {
       stop_rule <- "stall"
       break
     }
@@ -351,7 +309,6 @@ fit_ib <- function(
     DEGEN = degen[seq_len(iter)],
     HALVED = halved[seq_len(iter)],
     STEPSIZE = stepsize[seq_len(iter)],
-    LAMBDA = damping_path[seq_len(iter)],
     GAP = gap_path[seq_len(iter), , drop = FALSE],
     SE = se_path[seq_len(iter), , drop = FALSE],
     H = h_path[seq_len(iter)],
@@ -502,165 +459,4 @@ ib_step_fixedpoint <- function(THETA_WORK, GAP, STEP, WORKPAR, MIN_EIG) {
     }
   }
   list(THETA = cand, HALVED = halved, STEPSIZE = step)
-}
-
-ib_step_broyden <- function(
-  THETA_WORK,
-  GAP,
-  JACOBIAN,
-  THETA_WORK_PREV,
-  GAP_PREV,
-  STEP,
-  WORKPAR,
-  MIN_EIG
-) {
-  if (!is.null(THETA_WORK_PREV)) {
-    theta_change <- THETA_WORK - THETA_WORK_PREV
-    gap_change <- GAP - GAP_PREV
-    theta_change_sq <- drop(crossprod(theta_change))
-    if (theta_change_sq > 1e-12) {
-      JACOBIAN <- JACOBIAN +
-        tcrossprod(gap_change - JACOBIAN %*% theta_change, theta_change) /
-          theta_change_sq
-    }
-  }
-  theta_work_prev <- THETA_WORK
-  gap_prev <- GAP
-  direction <- try(solve(JACOBIAN, -GAP), silent = TRUE)
-  if (inherits(direction, "try-error")) {
-    JACOBIAN <- diag(-1 / STEP, 9)
-    direction <- GAP
-    step0 <- STEP
-  } else {
-    direction <- as.numeric(direction)
-    step0 <- 1
-  }
-  step <- step0
-  halved <- 0L
-  cand <- NULL
-  repeat {
-    proposal <- THETA_WORK + step * direction
-    trial <- try(
-      if (WORKPAR == "Joe") joe2theta(proposal) else proposal,
-      silent = TRUE
-    )
-    valid <- !inherits(trial, "try-error") && all(is.finite(trial))
-    if (valid) {
-      sigma <- theta2list(trial)$SIGMA
-      valid <- all(is.finite(sigma)) &&
-        min(eigen(sigma, symmetric = TRUE, only.values = TRUE)$values) >=
-          MIN_EIG &&
-        !inherits(try(chol(sigma), silent = TRUE), "try-error")
-    }
-    if (valid) {
-      cand <- trial
-      break
-    }
-    step <- step / 2
-    halved <- halved + 1L
-    if (step < step0 * 2^-19) {
-      break
-    }
-  }
-  list(
-    THETA = cand,
-    HALVED = halved,
-    STEPSIZE = step,
-    JACOBIAN = JACOBIAN,
-    THETA_WORK_PREV = theta_work_prev,
-    GAP_PREV = gap_prev
-  )
-}
-
-ib_step_lm <- function(
-  THETA_WORK,
-  GAP,
-  JACOBIAN,
-  DAMPING,
-  DAMPING_GROWTH,
-  SEEDS,
-  H,
-  N_STUDIES,
-  N_I,
-  CC,
-  PRIOR,
-  USE_PARALLEL,
-  PI_HAT_WORK,
-  WORKPAR,
-  MIN_EIG
-) {
-  gram <- crossprod(JACOBIAN)
-  gradient <- crossprod(JACOBIAN, GAP)
-  scale_diag <- diag(pmax(diag(gram), 1e-12), 9)
-  cand <- NULL
-  carried_summary <- NULL
-  halved <- 0L
-  repeat {
-    step_vector <- as.numeric(solve(gram + DAMPING * scale_diag, -gradient))
-    proposal <- THETA_WORK + step_vector
-    trial <- try(
-      if (WORKPAR == "Joe") joe2theta(proposal) else proposal,
-      silent = TRUE
-    )
-    predicted_gap_change <- as.numeric(JACOBIAN %*% step_vector)
-    gain_ratio <- -Inf
-    valid <- !inherits(trial, "try-error") && all(is.finite(trial))
-    if (valid) {
-      sigma <- theta2list(trial)$SIGMA
-      valid <- all(is.finite(sigma)) &&
-        min(eigen(sigma, symmetric = TRUE, only.values = TRUE)$values) >=
-          MIN_EIG &&
-        !inherits(try(chol(sigma), silent = TRUE), "try-error")
-    }
-    if (valid) {
-      trial_summary <- ib_gap(
-        THETA = trial,
-        SEEDS = SEEDS,
-        H = H,
-        N_STUDIES = N_STUDIES,
-        N_I = N_I,
-        CC = CC,
-        PRIOR = PRIOR,
-        USE_PARALLEL = USE_PARALLEL,
-        PI_HAT_WORK = PI_HAT_WORK,
-        WORKPAR = WORKPAR,
-        MIN_EIG = MIN_EIG
-      )
-      if (!is.null(trial_summary)) {
-        predicted <- sum(GAP^2) - sum((GAP + predicted_gap_change)^2)
-        actual <- sum(GAP^2) - sum(trial_summary$GAP^2)
-        gain_ratio <- if (predicted > 0) actual / predicted else -Inf
-      }
-    }
-    if (gain_ratio > 0) {
-      step_sq <- drop(crossprod(step_vector))
-      if (step_sq > 1e-12) {
-        JACOBIAN <- JACOBIAN +
-          tcrossprod(
-            (trial_summary$GAP - GAP) - predicted_gap_change,
-            step_vector
-          ) /
-            step_sq
-      }
-      cand <- trial
-      carried_summary <- trial_summary
-      DAMPING <- DAMPING * max(1 / 3, 1 - (2 * gain_ratio - 1)^3)
-      DAMPING_GROWTH <- 2
-      break
-    }
-    DAMPING <- DAMPING * DAMPING_GROWTH
-    DAMPING_GROWTH <- 2 * DAMPING_GROWTH
-    halved <- halved + 1L
-    if (halved >= 30L) {
-      break
-    }
-  }
-  list(
-    THETA = cand,
-    GAP_SUMMARY = carried_summary,
-    JACOBIAN = JACOBIAN,
-    DAMPING = DAMPING,
-    DAMPING_GROWTH = DAMPING_GROWTH,
-    HALVED = halved
-  )
 }

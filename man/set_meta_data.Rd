@@ -46,7 +46,7 @@ summaries used by \code{\link[=fit_tlmm]{fit_tlmm()}} or \code{\link[=fit_tglmm]
 }
 \examples{
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
-set.seed(4)
+set.seed(2)
 x <- sim_data(5, th, rep(100, 5))
 d <- set_meta_data(x)
 d

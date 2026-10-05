@@ -5,17 +5,16 @@
 \title{Set the control parameters for the iterative bootstrap}
 \usage{
 set_ib_control(
-  H = 50,
+  H = 100,
   MAX_ITER = 100,
   TOL = NULL,
-  STEP = 0.5,
+  STEP = 1,
   PATIENCE = 5L,
-  UPDATE = c("fixedpoint", "broyden", "lm"),
-  TERMINATION = c("confidence", "hotelling"),
-  PRECISION = 0.5,
-  BOOST = NULL,
+  TERMINATION = c("confidence", "hotelling", "max_iter"),
+  PRECISION = 1,
+  BOOST = FALSE,
   BOOST_FACTOR = 2,
-  MAX_H = 1000,
+  MAX_H = 500,
   NCORES = 1L
 )
 }
@@ -25,28 +24,29 @@ set_ib_control(
 \item{MAX_ITER}{Maximum number of iterations.}
 
 \item{TOL}{Significance level \eqn{\alpha \in (0, 1)} of the convergence
-test (see \code{TERMINATION}). If \code{NULL}, \code{0.5} for \code{"hotelling"} and \code{0.01}
-for \code{"confidence"}.}
+test (see \code{TERMINATION}). If \code{NULL}, \code{0.5} for \code{"hotelling"} and \code{0.05}
+for \code{"confidence"}. Ignored for \code{"max_iter"}.}
 
 \item{STEP}{Damping factor \eqn{\gamma \in (0, 1]}.}
 
 \item{PATIENCE}{Stop after this many iterations with no improvement in the
-best convergence statistic (returning the best iterate seen).}
-
-\item{UPDATE}{Update rule for the recursion: \code{"fixedpoint"} (default), \code{"broyden"}, for
-quasi-Newton step, or \code{"lm"}, for Levenberg--Marquardt step.}
+best convergence statistic (returning the best iterate seen). Ignored for
+\code{"max_iter"}.}
 
 \item{TERMINATION}{Convergence test on the Hotelling \eqn{T^2} statistc constructed from the IB gap:
 \code{"hotelling"} stops when \eqn{H_0: E[gap] = 0} is not rejected;
 \code{"confidence"} (default) stops when the
 \eqn{1 - \alpha} Hotelling confidence ellipsoid of the gap lies inside the
 tolerance region \eqn{\delta^\top \Sigma^{-1} \delta \le} \code{PRECISION},
-with \eqn{\Sigma} the covariance of a single simulated estimate.}
+with \eqn{\Sigma} the covariance of a single simulated estimate;
+\code{"max_iter"} runs all \code{MAX_ITER} iterations with no test and returns the
+best iterate seen.}
 
 \item{PRECISION}{Squared equivalence margin of the \code{"confidence"} test, in
 squared standard deviations of the estimator.}
 
-\item{BOOST}{If \code{TRUE}, increases \code{H} when the \code{"confidence"} test fails.}
+\item{BOOST}{If \code{TRUE}, increases \code{H} when the \code{"confidence"} test fails.
+Only for \code{TERMINATION = "confidence"}.}
 
 \item{BOOST_FACTOR}{Maximum multiplicative growth of \code{H} when \code{BOOST = TRUE}.}
 

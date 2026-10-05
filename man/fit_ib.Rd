@@ -31,9 +31,8 @@ runs agree; the returned \code{SEEDS} are the ones used.}
 }
 \value{
 An \code{accmeta_ib} object. \code{STOP} says why the iteration ended: \code{"tol"}
-(the convergence test passed), \code{"stall"} (early stop: no improvement for
-\code{PATIENCE} iterations, or no positive-definite step left, typically when
-the root lies on the boundary) or \code{"maxit"}. \code{THETA} is the best iterate.
+(the convergence test passed), \code{"boundary"} (no valid generative model available for next iteration),
+\code{"stall"} (no improvement for \code{PATIENCE} iterations) or \code{"maxit"}.
 }
 \description{
 Iterative bootstrap bias correction for TLMM

@@ -160,22 +160,24 @@ joe2theta <- function(JOEPAR) {
 #' @param H Number of datasets simulated per iteration.
 #' @param MAX_ITER Maximum number of iterations.
 #' @param TOL Significance level \eqn{\alpha \in (0, 1)} of the convergence
-#'   test (see `TERMINATION`). If `NULL`, `0.5` for `"hotelling"` and `0.01`
-#'   for `"confidence"`.
+#'   test (see `TERMINATION`). If `NULL`, `0.5` for `"hotelling"` and `0.05`
+#'   for `"confidence"`. Ignored for `"max_iter"`.
 #' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
 #' @param PATIENCE Stop after this many iterations with no improvement in the
-#'   best convergence statistic (returning the best iterate seen).
-#' @param UPDATE Update rule for the recursion: `"fixedpoint"` (default), `"broyden"`, for
-#'   quasi-Newton step, or `"lm"`, for Levenberg--Marquardt step.
+#'   best convergence statistic (returning the best iterate seen). Ignored for
+#'   `"max_iter"`.
 #' @param TERMINATION Convergence test on the Hotelling \eqn{T^2} statistc constructed from the IB gap:
 #'   `"hotelling"` stops when \eqn{H_0: E[gap] = 0} is not rejected;
 #'   `"confidence"` (default) stops when the
 #'   \eqn{1 - \alpha} Hotelling confidence ellipsoid of the gap lies inside the
 #'   tolerance region \eqn{\delta^\top \Sigma^{-1} \delta \le} `PRECISION`,
-#'   with \eqn{\Sigma} the covariance of a single simulated estimate.
+#'   with \eqn{\Sigma} the covariance of a single simulated estimate;
+#'   `"max_iter"` runs all `MAX_ITER` iterations with no test and returns the
+#'   best iterate seen.
 #' @param PRECISION Squared equivalence margin of the `"confidence"` test, in
 #'   squared standard deviations of the estimator.
 #' @param BOOST If `TRUE`, increases `H` when the `"confidence"` test fails.
+#'   Only for `TERMINATION = "confidence"`.
 #' @param BOOST_FACTOR Maximum multiplicative growth of `H` when `BOOST = TRUE`.
 #' @param MAX_H Upper bound on `H` when `BOOST = TRUE`.
 #' @param NCORES Number of cores to be passed to [mirai::daemons()]. Default `1` runs serially.
@@ -190,31 +192,26 @@ joe2theta <- function(JOEPAR) {
 #'
 #' @export
 set_ib_control <- function(
-  H = 50,
+  H = 100,
   MAX_ITER = 100,
   TOL = NULL,
-  STEP = 0.5,
+  STEP = 1,
   PATIENCE = 5L,
-  UPDATE = c("fixedpoint", "broyden", "lm"),
-  TERMINATION = c("confidence", "hotelling"),
-  PRECISION = 0.5,
-  BOOST = NULL,
+  TERMINATION = c("confidence", "hotelling", "max_iter"),
+  PRECISION = 1,
+  BOOST = FALSE,
   BOOST_FACTOR = 2,
-  MAX_H = 1000,
+  MAX_H = 500,
   NCORES = 1L
 ) {
-  UPDATE <- match.arg(UPDATE)
   TERMINATION <- match.arg(TERMINATION)
   if (is.null(TOL)) {
-    TOL <- if (TERMINATION == "hotelling") 0.5 else 0.01
-  }
-  if (is.null(BOOST)) {
-    BOOST <- TERMINATION == "confidence"
+    TOL <- if (TERMINATION == "hotelling") 0.5 else 0.05
   }
   stopifnot(
     is.numeric(H),
     length(H) == 1,
-    H >= 2,
+    H > 9,
     is.numeric(MAX_ITER),
     length(MAX_ITER) == 1,
     MAX_ITER >= 1,
@@ -247,15 +244,14 @@ set_ib_control <- function(
   h_top <- if (BOOST) MAX_H else H
   if (
     TERMINATION == "confidence" &&
-      h_top > 9 &&
-      h_top * PRECISION <= ib_crit(h_top, TOL)
+      (h_top - 1) * PRECISION <= ib_crit(h_top, TOL)
   ) {
     warning(
       "the confidence test cannot pass with H = ",
       h_top,
       " and PRECISION = ",
       PRECISION,
-      "; increase either (H * PRECISION must exceed ",
+      " ((H - 1) * PRECISION must exceed ",
       signif(ib_crit(h_top, TOL), 3),
       ").",
       call. = FALSE
@@ -267,7 +263,6 @@ set_ib_control <- function(
     TOL = TOL,
     STEP = STEP,
     PATIENCE = PATIENCE,
-    UPDATE = UPDATE,
     TERMINATION = TERMINATION,
     PRECISION = PRECISION,
     BOOST = BOOST,

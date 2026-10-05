@@ -38,7 +38,6 @@ test_that("counts are the raw table", {
   expect_equal(unname(d$counts[, "y_gamma"]), unname(n1))
   expect_equal(unname(d$counts[, "den_gamma"]), unname(rowSums(x)))
   expect_equal(d$counts, round(d$counts))
-  # correction leaves counts alone
   expect_equal(suppressMessages(set_meta_data(x))$counts, d$counts)
 })
 
@@ -92,7 +91,7 @@ test_that("a correction keeps an empty cell finite", {
 })
 
 test_that("the empty cell message names studies", {
-  set.seed(4)
+  set.seed(2)
   x <- sim_data(5, th, rep(100, 5))
   expect_silent(set_meta_data(x))
   x[c(2, 5), ] <- c(0L, 0L, 0L, 0L, 10L, 10L, 90L, 90L)
@@ -113,7 +112,6 @@ test_that("fitting functions want the object", {
   expect_error(init_theta(list()), "accmeta_data")
   expect_error(init_theta(unclass(d)), "accmeta_data")
 
-  # dropped slots must not pass
   expect_error(init_theta(`[[<-`(d, "tab", NULL)), "is.matrix")
   expect_error(fit_tlmm(`[[<-`(d, "est", NULL)), "is.matrix")
   expect_error(fit_tglmm(`[[<-`(d, "counts", NULL)), "is.matrix")
@@ -133,7 +131,6 @@ test_that("init_theta reads raw counts only", {
   st <- init_theta(suppressMessages(set_meta_data(x)))
 
   expect_true(all(is.finite(st)))
-  # object correction is ignored
   expect_identical(init_theta(set_meta_data(x, CC = 1)), st)
   expect_identical(init_theta(set_meta_data(x, CC = 0.5)), st)
   expect_equal(st[1:3], unname(colMeans(set_meta_data(x, CC = 0.5)$est)))
@@ -160,12 +157,19 @@ test_that("print returns its argument", {
   expect_identical(out, d)
 })
 
+test_that("a fixed seed gives data continuous in THETA", {
+  set.seed(1)
+  a <- sim_data(50, th, rep(400, 50))
+  set.seed(1)
+  b <- sim_data(50, th + 1e-6, rep(400, 50))
+  expect_lte(sum(abs(a - b)), 2)
+})
+
 test_that("theta2list names its components", {
   p <- theta2list(th)
   nm <- c("eta", "xi", "gamma")
   expect_named(p$MU, nm)
   expect_identical(dimnames(p$SIGMA), list(nm, nm))
-  # the working vector stays bare
   expect_null(names(list2theta(p)))
   expect_equal(list2theta(p), th)
 })
