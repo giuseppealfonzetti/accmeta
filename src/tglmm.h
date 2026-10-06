@@ -29,21 +29,34 @@ Type tglmm(objective_function<Type>* obj)
   DATA_VECTOR(z);
   DATA_SCALAR(DEGREES);      // Wishart degrees of freedom
   DATA_SCALAR(SCALE);        // Wishart scale
+  DATA_STRING(WORKPAR);      // "PinheiroBates" or "Joe"
 
-  // params 
+  // params
   PARAMETER_VECTOR(MU);      // mu_eta, mu_xi, mu_gamma
-  PARAMETER_VECTOR(ALPHA);   // log-Cholesky of Sigma: log(L11), L21, log(L22), L31, L32, log(L33)
+  PARAMETER_VECTOR(ALPHA);   // PinheiroBates: log(L11), L21, log(L22), L31, L32, log(L33)
+                             // Joe: log(s1), log(s2), log(s3), atanh(r12), atanh(r13), atanh(r23|1)
 
   using namespace density;
 
+  // log-Cholesky of Sigma
+  vector<Type> LOGCHOL = ALPHA;
+  if (WORKPAR == "Joe") {
+    LOGCHOL(1) = exp(ALPHA(1)) * tanh(ALPHA(3));
+    LOGCHOL(2) = ALPHA(1) - log(cosh(ALPHA(3)));
+    LOGCHOL(3) = exp(ALPHA(2)) * tanh(ALPHA(4));
+    LOGCHOL(4) = exp(ALPHA(2)) * tanh(ALPHA(5)) / cosh(ALPHA(4));
+    LOGCHOL(5) = ALPHA(2) - log(cosh(ALPHA(4))) - log(cosh(ALPHA(5)));
+  }
+  REPORT(LOGCHOL);
+
   // Cholesky of Sigma on the natural scale
   vector<Type> A(6);
-  A(0) = exp(ALPHA(0));
-  A(1) = ALPHA(1);
-  A(2) = exp(ALPHA(2));
-  A(3) = ALPHA(3);
-  A(4) = ALPHA(4);
-  A(5) = exp(ALPHA(5));
+  A(0) = exp(LOGCHOL(0));
+  A(1) = LOGCHOL(1);
+  A(2) = exp(LOGCHOL(2));
+  A(3) = LOGCHOL(3);
+  A(4) = LOGCHOL(4);
+  A(5) = exp(LOGCHOL(5));
 
   Type ll = 0.0;
 
@@ -186,9 +199,7 @@ Type tglmm(objective_function<Type>* obj)
       }
     }
 
-    // Once per study, not once per node: the substitution is
-    // u = u_hat + sqrt(2) L z, whose Jacobian is 2^(d/2) |L| for d = 3, and
-    // exp(logLhat) supplies |L| alone.
+   
     ll += logsum + logLhat + Type(1.5) * log(Type(2.0));
   }
   Type nll = ll * (-1.0);
@@ -197,7 +208,7 @@ Type tglmm(objective_function<Type>* obj)
   REPORT(INNER_GRAD_MAX);
 
   // Wishart(DEGREES, A*I_3) prior. 
-  nll -= (DEGREES - Type(4.0)) * (ALPHA(0) + ALPHA(2) + ALPHA(5));
+  nll -= (DEGREES - Type(4.0)) * (LOGCHOL(0) + LOGCHOL(2) + LOGCHOL(5));
   nll += Sigma.trace() / (Type(2.0) * SCALE);        
 
   ADREPORT(Sigma);

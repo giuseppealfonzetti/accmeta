@@ -86,3 +86,36 @@ test_that("CONTROL reaches the optimiser", {
   expect_identical(fit_tlmm(d, CONTROL = list(maxeval = 1))$CONVERGENCE, 3L)
   expect_false(fit_tlmm(d)$CONVERGENCE == 3L)
 })
+
+test_that("fit_tlmm is the same fit on the Joe scale", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(20, th, rep(100, 20)), CC = 0.5)
+  pb <- fit_tlmm(d, THETA_START = th, PRIOR = set_prior(9, 1), CONTROL = list(maxeval = 1))$OBJ
+  joe <- fit_tlmm(
+    d, THETA_START = th, PRIOR = set_prior(9, 1), CONTROL = list(maxeval = 1),
+    WORKPAR = "Joe"
+  )$OBJ
+  expect_equal(joe$fn(theta2joe(th)), pb$fn(th), tolerance = 1e-10)
+  expect_equal(joe$report(theta2joe(th))$LOGCHOL, th[4:9], tolerance = 1e-10)
+  expect_equal(fit_tlmm(d, WORKPAR = "Joe")$THETA, fit_tlmm(d)$THETA, tolerance = 1e-5)
+})
+
+test_that("fit_tglmm is the same fit on the Joe scale", {
+  set.seed(1)
+  d <- suppressMessages(set_meta_data(sim_data(10, th, rep(100, 10))))
+  pb <- fit_tglmm(
+    d, THETA_START = th, N_NODES = 8L, PRIOR = set_prior(9, 1),
+    CONTROL = list(maxeval = 1)
+  )$OBJ
+  joe <- fit_tglmm(
+    d, THETA_START = th, N_NODES = 8L, PRIOR = set_prior(9, 1),
+    CONTROL = list(maxeval = 1), WORKPAR = "Joe"
+  )$OBJ
+  expect_equal(joe$fn(theta2joe(th)), pb$fn(th), tolerance = 1e-10)
+  expect_equal(joe$report(theta2joe(th))$LOGCHOL, th[4:9], tolerance = 1e-10)
+  expect_equal(
+    fit_tglmm(d, N_NODES = 8L, WORKPAR = "Joe")$THETA,
+    fit_tglmm(d, N_NODES = 8L)$THETA,
+    tolerance = 1e-5
+  )
+})

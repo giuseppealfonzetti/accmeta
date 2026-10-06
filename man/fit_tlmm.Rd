@@ -8,7 +8,8 @@ fit_tlmm(
   DATA,
   THETA_START = NULL,
   PRIOR = set_prior(),
-  CONTROL = list(maxeval = 1000)
+  CONTROL = list(maxeval = 1000),
+  WORKPAR = c("PinheiroBates", "Joe")
 )
 }
 \arguments{
@@ -23,6 +24,15 @@ objective rather than a log-likelihood.}
 
 \item{CONTROL}{List of control parameters passed to \code{\link[ucminf:ucminf]{ucminf::ucminf()}}; see
 its documentation for the accepted entries.}
+
+\item{WORKPAR}{Coordinates the optimiser works in for the covariance:
+\code{"PinheiroBates"} (log-Cholesky, default) or \code{"Joe"} (log standard
+deviations and Fisher-z partial correlations, see \code{\link[=theta2joe]{theta2joe()}}). The
+objective is a function of \eqn{\Sigma_3} alone, so the fit is the same
+under any prior with \code{DEGREES > 4}; under the flat prior the two can stop
+at different points of a boundary fit. \code{THETA} is returned in the layout of
+\code{\link[=theta2list]{theta2list()}} either way, while \code{OBJ} takes \code{WORKPAR} coordinates: under
+\code{"Joe"}, evaluate it at \code{theta2joe(THETA)}.}
 }
 \value{
 A list with components \code{THETA}, the fitted parameter vector in the

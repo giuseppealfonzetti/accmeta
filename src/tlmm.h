@@ -12,12 +12,25 @@ Type tlmm(objective_function<Type>* obj)
   DATA_MATRIX(WVAR);         // n x 3: var_eta, var_xi, var_gamma
   DATA_SCALAR(DEGREES);      // Wishart degrees of freedom
   DATA_SCALAR(SCALE);        // Wishart scale
+  DATA_STRING(WORKPAR);      // "PinheiroBates" or "Joe"
 
   // params
   PARAMETER_VECTOR(MU);      // mu_eta, mu_xi, mu_gamma
-  PARAMETER_VECTOR(ALPHA);   // log-Cholesky of Sigma: log(L11), L21, log(L22), L31, L32, log(L33)
+  PARAMETER_VECTOR(ALPHA);   // PinheiroBates: log(L11), L21, log(L22), L31, L32, log(L33)
+                             // Joe: log(s1), log(s2), log(s3), atanh(r12), atanh(r13), atanh(r23|1)
 
   using namespace density;
+
+  // log-Cholesky of Sigma
+  vector<Type> LOGCHOL = ALPHA;
+  if (WORKPAR == "Joe") {
+    LOGCHOL(1) = exp(ALPHA(1)) * tanh(ALPHA(3));
+    LOGCHOL(2) = ALPHA(1) - log(cosh(ALPHA(3)));
+    LOGCHOL(3) = exp(ALPHA(2)) * tanh(ALPHA(4));
+    LOGCHOL(4) = exp(ALPHA(2)) * tanh(ALPHA(5)) / cosh(ALPHA(4));
+    LOGCHOL(5) = ALPHA(2) - log(cosh(ALPHA(4))) - log(cosh(ALPHA(5)));
+  }
+  REPORT(LOGCHOL);
 
   // Sigma mat
   matrix<Type> L(3, 3);
@@ -26,7 +39,7 @@ Type tlmm(objective_function<Type>* obj)
   int ind = 0;
   for(int i = 0; i < 3; i++)
     for(int j = 0; j <= i; j++) {
-      L(i, j) = (i == j) ? exp(ALPHA(ind)) : ALPHA(ind);
+      L(i, j) = (i == j) ? exp(LOGCHOL(ind)) : LOGCHOL(ind);
       ind += 1;
     }
   matrix<Type> Sigma = L * L.transpose();
@@ -41,7 +54,7 @@ Type tlmm(objective_function<Type>* obj)
   }
 
   // Wishart(DEGREES, A*I_3) prior. 
-  nll -= (DEGREES - Type(4.0)) * (ALPHA(0) + ALPHA(2) + ALPHA(5));
+  nll -= (DEGREES - Type(4.0)) * (LOGCHOL(0) + LOGCHOL(2) + LOGCHOL(5));
   nll += Sigma.trace() / (Type(2.0) * SCALE);        
 
   ADREPORT(Sigma);

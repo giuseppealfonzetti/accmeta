@@ -123,11 +123,9 @@ theta2joe <- function(THETA) {
   li <- theta2list(THETA)
   s <- sqrt(diag(li$SIGMA))
   cormat <- li$SIGMA / tcrossprod(s)
-  r12 <- cormat[1, 2]
-  r13 <- cormat[1, 3]
-  r23 <- cormat[2, 3]
-  r23g1 <- (r23 - r12 * r13) / sqrt((1 - r12^2) * (1 - r13^2))
-  r <- pmin(pmax(c(r12, r13, r23g1), -1 + 1e-10), 1 - 1e-10)
+  r <- pmin(pmax(c(cormat[1, 2], cormat[1, 3]), -1 + 1e-10), 1 - 1e-10)
+  r23g1 <- (cormat[2, 3] - r[1] * r[2]) / sqrt((1 - r[1]^2) * (1 - r[2]^2))
+  r <- pmin(pmax(c(r, r23g1), -1 + 1e-10), 1 - 1e-10)
   unname(c(li$MU, log(s), atanh(r)))
 }
 

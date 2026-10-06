@@ -22,7 +22,8 @@ with \code{CC > 0}.}
 
 \item{WORKPAR}{Working scale for the matching equation and the
 update: \code{"PinheiroBates"} based on the log-Cholesky decomposition,
-or \code{"Joe"} (default) based on unconstrained partial correlations.}
+or \code{"Joe"} (default) based on unconstrained partial correlations. Also
+passed to the auxiliary \code{\link[=fit_tlmm]{fit_tlmm()}} fits.}
 
 \item{SEEDS}{Integer vector of length \code{H} seeding the simulated datasets. If
 \code{NULL}, drawn once and then held fixed. With \code{BOOST}, the seeds for up to

@@ -173,3 +173,10 @@ test_that("theta2list names its components", {
   expect_null(names(list2theta(p)))
   expect_equal(list2theta(p), th)
 })
+
+test_that("theta2joe stays finite at perfect correlations", {
+  th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
+  expect_equal(joe2theta(theta2joe(th)), th)
+  rank1 <- c(0, 0, 0, 0, -1, -60, 1, 0, -60)
+  expect_true(all(is.finite(theta2joe(rank1))))
+})
