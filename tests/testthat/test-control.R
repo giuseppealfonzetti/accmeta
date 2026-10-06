@@ -11,12 +11,14 @@ test_that("set_ib_control stores what it is given and fills the rest", {
   expect_identical(ctrl$STEP, 1)
   expect_identical(ctrl$PATIENCE, 5L)
   expect_identical(ctrl$NCORES, 1L)
-  expect_identical(ctrl$TERMINATION, "confidence")
+  expect_identical(ctrl$TERMINATION, "residual")
   expect_identical(ctrl$PRECISION, 1)
   expect_false(ctrl$BOOST)
   expect_identical(ctrl$BOOST_FACTOR, 2)
   expect_identical(ctrl$MAX_H, 500)
-  expect_no_warning(set_ib_control(PRECISION = 0.1, BOOST = TRUE))
+  expect_no_warning(
+    set_ib_control(TERMINATION = "confidence", PRECISION = 0.1, BOOST = TRUE)
+  )
   hot <- set_ib_control(TERMINATION = "hotelling")
   expect_identical(hot$TOL, 0.5)
   expect_false(hot$BOOST)
@@ -28,8 +30,16 @@ test_that("set_ib_control stores what it is given and fills the rest", {
     set_ib_control(H = 300, TERMINATION = "confidence", TOL = 0.01)$TOL,
     0.01
   )
-  expect_warning(set_ib_control(PRECISION = 0.1), "cannot pass")
+  expect_warning(
+    set_ib_control(TERMINATION = "confidence", PRECISION = 0.1),
+    "cannot pass"
+  )
   expect_no_warning(set_ib_control(H = 10, TERMINATION = "max_iter"))
+  expect_no_warning(set_ib_control(H = 10))
+  expect_identical(
+    set_ib_control(TERMINATION = "residual", PRECISION = 0.5)$PRECISION,
+    0.5
+  )
   expect_identical(set_ib_control(MAX_ITER = 5)$MAX_ITER, 5)
   expect_identical(set_ib_control(MAX_ITER = 5)$H, 100)
 })
@@ -51,6 +61,10 @@ test_that("set_ib_control rejects impossible values", {
   )
   expect_error(
     set_ib_control(TERMINATION = "max_iter", BOOST = TRUE),
+    "TERMINATION == \"confidence\""
+  )
+  expect_error(
+    set_ib_control(TERMINATION = "residual", BOOST = TRUE),
     "TERMINATION == \"confidence\""
   )
   expect_error(set_ib_control(BOOST = NA), "isTRUE")

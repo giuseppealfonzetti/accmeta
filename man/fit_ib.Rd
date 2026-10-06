@@ -21,8 +21,8 @@ with \code{CC > 0}.}
 \item{PRIOR}{Prior on \eqn{\Sigma_3}, as returned by \code{\link[=set_prior]{set_prior()}}.}
 
 \item{WORKPAR}{Working scale for the matching equation and the
-update: \code{"PinheiroBates"} (default) based on the log-Cholesky decomposition,
-or \code{"Joe"} based on unconstrained partial correlations.}
+update: \code{"PinheiroBates"} based on the log-Cholesky decomposition,
+or \code{"Joe"} (default) based on unconstrained partial correlations.}
 
 \item{SEEDS}{Integer vector of length \code{H} seeding the simulated datasets. If
 \code{NULL}, drawn once and then held fixed. With \code{BOOST}, the seeds for up to

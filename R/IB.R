@@ -5,8 +5,8 @@
 #' @param CONTROL Iterative-bootstrap control object from [set_ib_control()].
 #' @param PRIOR Prior on \eqn{\Sigma_3}, as returned by [set_prior()].
 #' @param WORKPAR Working scale for the matching equation and the
-#'   update: `"PinheiroBates"` (default) based on the log-Cholesky decomposition,
-#'   or `"Joe"` based on unconstrained partial correlations.
+#'   update: `"PinheiroBates"` based on the log-Cholesky decomposition,
+#'   or `"Joe"` (default) based on unconstrained partial correlations.
 #' @param SEEDS Integer vector of length `H` seeding the simulated datasets. If
 #'   `NULL`, drawn once and then held fixed. With `BOOST`, the seeds for up to
 #'   `MAX_H` datasets are appended once, before any fit, so serial and parallel
@@ -185,7 +185,8 @@ fit_ib <- function(
       hotelling = crit,
       confidence = (h_ok - 1) *
         max(sqrt(CONTROL$PRECISION) - sqrt(crit / (h_ok - 1)), 0)^2,
-      max_iter = NA_real_
+      residual = (h_ok - 1) * CONTROL$PRECISION / h_ok,
+      max_iter = NA
     )
 
     r2 <- t2 / (h_ok - 1)

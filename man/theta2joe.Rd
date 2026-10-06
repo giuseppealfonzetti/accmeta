@@ -16,7 +16,7 @@ entries 1 to 3 the means (copied verbatim), 4 to 6 the log marginal SDs
 \eqn{(\mathrm{atanh}\,\rho_{12}, \mathrm{atanh}\,\rho_{13},
   \mathrm{atanh}\,\rho_{23\mid1})}. Correlations are clamped to
 \eqn{\pm(1 - 10^{-10})} before \code{atanh}, so \code{joe2theta(theta2joe())} is
-exact for interior values but not bit-exact at a \eqn{\pm 1} boundary.
+exact only for interior values.
 }
 \description{
 Map the working vector to Joe's unconstrained parameters

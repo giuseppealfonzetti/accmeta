@@ -82,7 +82,8 @@ test_that("NCORES > 1 over mirai matches the serial fit", {
       d, SEEDS = 1:30,
       CONTROL = set_ib_control(
         H = 30, MAX_ITER = 6, STEP = 1, TOL = 0.01, PRECISION = 1,
-        BOOST = TRUE, MAX_H = 120, PATIENCE = 6, NCORES = ncores
+        TERMINATION = "confidence", BOOST = TRUE, MAX_H = 120, PATIENCE = 6,
+        NCORES = ncores
       )
     )
   }
@@ -191,7 +192,8 @@ test_that("BOOST grows H up to MAX_H and extends the seeds", {
     d,
     CONTROL = set_ib_control(
       H = 30, MAX_ITER = 6, STEP = 1, TOL = 0.01, PRECISION = 1,
-      BOOST = TRUE, BOOST_FACTOR = 10, MAX_H = 1000, PATIENCE = 6
+      TERMINATION = "confidence", BOOST = TRUE, BOOST_FACTOR = 10,
+      MAX_H = 1000, PATIENCE = 6
     ),
     SEEDS = 1:30
   )
@@ -285,7 +287,10 @@ test_that("a runaway update is halved, and a boundary root stops early", {
   d <- set_meta_data(sim_data(15, tv, ss), CC = 0.5)
   f <- suppressWarnings(
     fit_ib(
-      d, CONTROL = set_ib_control(H = 20, MAX_ITER = 6, STEP = 1),
+      d,
+      CONTROL = set_ib_control(
+        H = 20, MAX_ITER = 6, STEP = 1, TERMINATION = "confidence"
+      ),
       PRIOR = set_prior(4), SEEDS = 1:20
     )
   )
@@ -322,4 +327,24 @@ test_that("max_iter runs the whole budget past the early stops", {
   expect_false(f$CONVERGED)
   expect_true(all(is.na(f$THRESHOLD)))
   expect_equal(f$THETA, f$PATH[which.min(f$PROGRESS), ])
+})
+
+test_that("residual stops once the gap is within PRECISION / H of the IB limit", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
+  f <- fit_ib(
+    d,
+    CONTROL = set_ib_control(H = 30, MAX_ITER = 10, TERMINATION = "residual"),
+    SEEDS = 1:30
+  )
+  h_ok <- f$H - f$FAIL
+  r2 <- f$PROGRESS / (h_ok - 1)
+  tol <- 1 / h_ok
+  expect_identical(f$STOP, "tol")
+  expect_true(f$CONVERGED)
+  expect_lt(f$N_ITER, 10)
+  expect_equal(f$THRESHOLD, (h_ok - 1) * tol)
+  expect_lt(tail(r2, 1), tail(tol, 1))
+  expect_true(all(head(r2, -1) >= head(tol, -1)))
+  expect_equal(f$THETA, f$PATH[f$N_ITER, ])
 })

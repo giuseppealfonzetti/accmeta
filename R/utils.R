@@ -115,7 +115,7 @@ set_prior <- function(DEGREES = 5, SCALE = Inf) {
 #'   \eqn{(\mathrm{atanh}\,\rho_{12}, \mathrm{atanh}\,\rho_{13},
 #'   \mathrm{atanh}\,\rho_{23\mid1})}. Correlations are clamped to
 #'   \eqn{\pm(1 - 10^{-10})} before `atanh`, so `joe2theta(theta2joe())` is
-#'   exact for interior values but not bit-exact at a \eqn{\pm 1} boundary.
+#'   exact only for interior values.
 #'
 #' @seealso [joe2theta()] for the inverse map.
 #' @export
@@ -159,23 +159,30 @@ joe2theta <- function(JOEPAR) {
 #'
 #' @param H Number of datasets simulated per iteration.
 #' @param MAX_ITER Maximum number of iterations.
-#' @param TOL Significance level \eqn{\alpha \in (0, 1)} of the convergence
-#'   test (see `TERMINATION`). If `NULL`, `0.5` for `"hotelling"` and `0.05`
-#'   for `"confidence"`. Ignored for `"max_iter"`.
+#' @param TOL Significance level \eqn{\alpha \in (0, 1)} of the `"hotelling"`
+#'   and `"confidence"` tests (see `TERMINATION`). If `NULL`, `0.5` for
+#'   `"hotelling"` and `0.05` otherwise. Ignored for `"residual"` and
+#'   `"max_iter"`.
 #' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
 #' @param PATIENCE Stop after this many iterations with no improvement in the
 #'   best convergence statistic (returning the best iterate seen). Ignored for
 #'   `"max_iter"`.
-#' @param TERMINATION Convergence test on the Hotelling \eqn{T^2} statistc constructed from the IB gap:
-#'   `"hotelling"` stops when \eqn{H_0: E[gap] = 0} is not rejected;
-#'   `"confidence"` (default) stops when the
-#'   \eqn{1 - \alpha} Hotelling confidence ellipsoid of the gap lies inside the
-#'   tolerance region \eqn{\delta^\top \Sigma^{-1} \delta \le} `PRECISION`,
-#'   with \eqn{\Sigma} the covariance of a single simulated estimate;
+#' @param TERMINATION Stopping rule, based on the IB gap \eqn{\bar g} and the
+#'   sample covariance \eqn{S} of the \eqn{H} simulated estimates:
+#'   `"residual"` (default) stops when \eqn{\bar g^\top S^{-1} \bar g <}
+#'   `PRECISION`\eqn{/H}, i.e. when the next step is within `sqrt(PRECISION)`
+#'   Monte Carlo standard deviations of the IB estimator;
+#'   `"hotelling"` stops when the Hotelling test of \eqn{H_0: E[g] = 0} is
+#'   not rejected;
+#'   `"confidence"` stops when the \eqn{1 - \alpha} Hotelling confidence
+#'   ellipsoid of the gap lies inside the tolerance region
+#'   \eqn{\delta^\top \Sigma^{-1} \delta \le} `PRECISION`, with \eqn{\Sigma} the
+#'   covariance of a single simulated estimate;
 #'   `"max_iter"` runs all `MAX_ITER` iterations with no test and returns the
 #'   best iterate seen.
-#' @param PRECISION Squared equivalence margin of the `"confidence"` test, in
-#'   squared standard deviations of the estimator.
+#' @param PRECISION Squared tolerance: for `"residual"`, in units of the Monte
+#'   Carlo variance \eqn{1/H}; for `"confidence"`, the squared equivalence
+#'   margin in squared standard deviations of the estimator.
 #' @param BOOST If `TRUE`, increases `H` when the `"confidence"` test fails.
 #'   Only for `TERMINATION = "confidence"`.
 #' @param BOOST_FACTOR Maximum multiplicative growth of `H` when `BOOST = TRUE`.
@@ -197,7 +204,7 @@ set_ib_control <- function(
   TOL = NULL,
   STEP = 1,
   PATIENCE = 5L,
-  TERMINATION = c("confidence", "hotelling", "max_iter"),
+  TERMINATION = c("residual", "confidence", "hotelling", "max_iter"),
   PRECISION = 1,
   BOOST = FALSE,
   BOOST_FACTOR = 2,

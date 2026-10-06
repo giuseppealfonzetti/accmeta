@@ -10,7 +10,7 @@ set_ib_control(
   TOL = NULL,
   STEP = 1,
   PATIENCE = 5L,
-  TERMINATION = c("confidence", "hotelling", "max_iter"),
+  TERMINATION = c("residual", "confidence", "hotelling", "max_iter"),
   PRECISION = 1,
   BOOST = FALSE,
   BOOST_FACTOR = 2,
@@ -23,9 +23,10 @@ set_ib_control(
 
 \item{MAX_ITER}{Maximum number of iterations.}
 
-\item{TOL}{Significance level \eqn{\alpha \in (0, 1)} of the convergence
-test (see \code{TERMINATION}). If \code{NULL}, \code{0.5} for \code{"hotelling"} and \code{0.05}
-for \code{"confidence"}. Ignored for \code{"max_iter"}.}
+\item{TOL}{Significance level \eqn{\alpha \in (0, 1)} of the \code{"hotelling"}
+and \code{"confidence"} tests (see \code{TERMINATION}). If \code{NULL}, \code{0.5} for
+\code{"hotelling"} and \code{0.05} otherwise. Ignored for \code{"residual"} and
+\code{"max_iter"}.}
 
 \item{STEP}{Damping factor \eqn{\gamma \in (0, 1]}.}
 
@@ -33,17 +34,23 @@ for \code{"confidence"}. Ignored for \code{"max_iter"}.}
 best convergence statistic (returning the best iterate seen). Ignored for
 \code{"max_iter"}.}
 
-\item{TERMINATION}{Convergence test on the Hotelling \eqn{T^2} statistc constructed from the IB gap:
-\code{"hotelling"} stops when \eqn{H_0: E[gap] = 0} is not rejected;
-\code{"confidence"} (default) stops when the
-\eqn{1 - \alpha} Hotelling confidence ellipsoid of the gap lies inside the
-tolerance region \eqn{\delta^\top \Sigma^{-1} \delta \le} \code{PRECISION},
-with \eqn{\Sigma} the covariance of a single simulated estimate;
+\item{TERMINATION}{Stopping rule, based on the IB gap \eqn{\bar g} and the
+sample covariance \eqn{S} of the \eqn{H} simulated estimates:
+\code{"residual"} (default) stops when \eqn{\bar g^\top S^{-1} \bar g <}
+\code{PRECISION}\eqn{/H}, i.e. when the next step is within \code{sqrt(PRECISION)}
+Monte Carlo standard deviations of the IB estimator;
+\code{"hotelling"} stops when the Hotelling test of \eqn{H_0: E[g] = 0} is
+not rejected;
+\code{"confidence"} stops when the \eqn{1 - \alpha} Hotelling confidence
+ellipsoid of the gap lies inside the tolerance region
+\eqn{\delta^\top \Sigma^{-1} \delta \le} \code{PRECISION}, with \eqn{\Sigma} the
+covariance of a single simulated estimate;
 \code{"max_iter"} runs all \code{MAX_ITER} iterations with no test and returns the
 best iterate seen.}
 
-\item{PRECISION}{Squared equivalence margin of the \code{"confidence"} test, in
-squared standard deviations of the estimator.}
+\item{PRECISION}{Squared tolerance: for \code{"residual"}, in units of the Monte
+Carlo variance \eqn{1/H}; for \code{"confidence"}, the squared equivalence
+margin in squared standard deviations of the estimator.}
 
 \item{BOOST}{If \code{TRUE}, increases \code{H} when the \code{"confidence"} test fails.
 Only for \code{TERMINATION = "confidence"}.}
