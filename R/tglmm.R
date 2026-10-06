@@ -17,6 +17,15 @@
 #'   its documentation for the accepted entries. The default raises `maxeval`
 #'   above the ucminf default, which this likelihood exhausts before converging.
 #'
+#' @param WORKPAR Coordinates the optimiser works in for the covariance:
+#'   `"PinheiroBates"` (log-Cholesky, default) or `"Joe"` (log standard
+#'   deviations and Fisher-z partial correlations, see [theta2joe()]). The
+#'   objective is a function of \eqn{\Sigma_3} alone, so the fit is the same
+#'   under any prior with `DEGREES > 4`; under the flat prior the two can stop
+#'   at different points of a boundary fit. `THETA` is returned in the layout of
+#'   [theta2list()] either way, while `OBJ` takes `WORKPAR` coordinates: under
+#'   `"Joe"`, evaluate it at `theta2joe(THETA)`.
+#'
 #' @return A list with components `THETA`, the fitted parameter vector in the
 #'   layout documented for [theta2list()]; `CONVERGENCE`, the optimiser
 #'   convergence code; `NLL`, the negative log-likelihood at the optimum;
@@ -38,8 +47,10 @@ fit_tglmm <- function(
   N_NODES = 15L,
   N_ITER = 10L,
   PRIOR = set_prior(),
-  CONTROL = list(maxeval = 1000)
+  CONTROL = list(maxeval = 1000),
+  WORKPAR = c("PinheiroBates", "Joe")
 ) {
+  WORKPAR <- match.arg(WORKPAR)
   stopifnot(
     inherits(DATA, "accmeta_data"),
     is.matrix(DATA$counts),
@@ -69,9 +80,17 @@ fit_tglmm <- function(
       ws = as.numeric(exp(gh$nodes^2) * gh$weights),
       z = as.numeric(gh$nodes),
       DEGREES = as.numeric(PRIOR$DEGREES),
-      SCALE = as.numeric(PRIOR$SCALE)
+      SCALE = as.numeric(PRIOR$SCALE),
+      WORKPAR = WORKPAR
     ),
-    parameters = list(MU = THETA_START[1:3], ALPHA = THETA_START[4:9]),
+    parameters = list(
+      MU = THETA_START[1:3],
+      ALPHA = if (WORKPAR == "Joe") {
+        theta2joe(THETA_START)[4:9]
+      } else {
+        THETA_START[4:9]
+      }
+    ),
     DLL = "accmeta",
     silent = TRUE
   )
@@ -82,7 +101,7 @@ fit_tglmm <- function(
     control = CONTROL
   )
   out <- list(
-    THETA = unname(est$par),
+    THETA = unname(c(est$par[1:3], obj$report(est$par)$LOGCHOL)),
     CONVERGENCE = est$convergence,
     NLL = est$value,
     OBJ = obj,

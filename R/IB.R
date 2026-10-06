@@ -6,7 +6,8 @@
 #' @param PRIOR Prior on \eqn{\Sigma_3}, as returned by [set_prior()].
 #' @param WORKPAR Working scale for the matching equation and the
 #'   update: `"PinheiroBates"` based on the log-Cholesky decomposition,
-#'   or `"Joe"` (default) based on unconstrained partial correlations.
+#'   or `"Joe"` (default) based on unconstrained partial correlations. Also
+#'   passed to the auxiliary [fit_tlmm()] fits.
 #' @param SEEDS Integer vector of length `H` seeding the simulated datasets. If
 #'   `NULL`, drawn once and then held fixed. With `BOOST`, the seeds for up to
 #'   `MAX_H` datasets are appended once, before any fit, so serial and parallel
@@ -86,7 +87,7 @@ fit_ib <- function(
   n_i <- DATA$margins[, "n"]
 
   # initial estimate
-  pi_hat <- fit_tlmm(DATA, PRIOR = PRIOR)$THETA
+  pi_hat <- fit_tlmm(DATA, PRIOR = PRIOR, WORKPAR = WORKPAR)$THETA
   pi_hat_work <- if (WORKPAR == "Joe") theta2joe(pi_hat) else pi_hat
   theta <- project_pd(pi_hat, min_eig)
 
@@ -344,7 +345,7 @@ project_pd <- function(THETA, MIN_EIG) {
 }
 
 # single fit helper function
-ib_one_fit <- function(REP, SEEDS, THETA, N_STUDIES, N_I, CC, PRIOR) {
+ib_one_fit <- function(REP, SEEDS, THETA, N_STUDIES, N_I, CC, PRIOR, WORKPAR) {
   set.seed(SEEDS[REP], kind = "Mersenne-Twister", normal.kind = "Inversion")
 
   # attempts loop to defend from bad sims
@@ -354,7 +355,12 @@ ib_one_fit <- function(REP, SEEDS, THETA, N_STUDIES, N_I, CC, PRIOR) {
       CC = CC
     )
     f <- try(
-      accmeta::fit_tlmm(d, THETA_START = THETA, PRIOR = PRIOR),
+      accmeta::fit_tlmm(
+        d,
+        THETA_START = THETA,
+        PRIOR = PRIOR,
+        WORKPAR = WORKPAR
+      ),
       silent = TRUE
     )
     if (!inherits(f, "try-error") && all(is.finite(f$THETA))) {
@@ -388,7 +394,8 @@ ib_gap <- function(
         N_STUDIES = N_STUDIES,
         N_I = N_I,
         CC = CC,
-        PRIOR = PRIOR
+        PRIOR = PRIOR,
+        WORKPAR = WORKPAR
       )
     )[]
   } else {
@@ -400,7 +407,8 @@ ib_gap <- function(
         N_STUDIES = N_STUDIES,
         N_I = N_I,
         CC = CC,
-        PRIOR = PRIOR
+        PRIOR = PRIOR,
+        WORKPAR = WORKPAR
       )
     })
   }

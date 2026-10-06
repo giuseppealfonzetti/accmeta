@@ -45,7 +45,7 @@ test_that("the result carries its path and diagnostics", {
   expect_identical(dim(f$SE), c(f$N_ITER, 9L))
   expect_equal(f$PATH[1, ], f$PI_HAT)
   expect_identical(sum(f$HALVED), 0L)
-  expect_equal(f$PI_HAT, fit_tlmm(d, PRIOR = set_prior())$THETA)
+  expect_equal(f$PI_HAT, fit_tlmm(d, PRIOR = set_prior(), WORKPAR = "Joe")$THETA)
   expect_equal(f$THETA, f$PATH[which.min(f$PROGRESS), ])
 })
 
@@ -254,7 +254,7 @@ test_that("a boundary start is projected inward", {
   set.seed(15)
   d <- set_meta_data(sim_data(15, tv, ss), CC = 0.5)
 
-  flat <- fit_tlmm(d, PRIOR = set_prior(4))$THETA
+  flat <- fit_tlmm(d, PRIOR = set_prior(4), WORKPAR = "Joe")$THETA
   ev <- eigen(theta2list(flat)$SIGMA, symmetric = TRUE, only.values = TRUE)$values
   expect_lt(min(ev), 1e-4)
 
