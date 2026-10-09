@@ -12,6 +12,12 @@
 #'   `NULL`, drawn once and then held fixed. With `BOOST`, the seeds for up to
 #'   `MAX_H` datasets are appended once, before any fit, so serial and parallel
 #'   runs agree; the returned `SEEDS` are the ones used.
+#'   When `NULL`, the seeds are drawn from the caller's RNG, which is the only
+#'   change `fit_ib()` makes to the caller's RNG state.
+#' @param VCOV If `TRUE`, also computes the Jacobian at the estimate, stored as `JACOBIAN`, which
+#'   [vcov()][vcov.accmeta_ib] and [confint()][confint.accmeta_ib] need. Its settings are the
+#'   `VCOV_*` entries of [set_ib_control()]. It can be added later with
+#'   [update()][update.accmeta_ib].
 #'
 #' @return An `accmeta_ib` object. `STOP` says why the iteration ended: `"tol"`
 #'   (the convergence test passed), `"boundary"` (no valid generative model available for next iteration),
@@ -33,7 +39,8 @@ fit_ib <- function(
   CONTROL = set_ib_control(),
   PRIOR = set_prior(),
   WORKPAR = c("Joe", "PinheiroBates"),
-  SEEDS = NULL
+  SEEDS = NULL,
+  VCOV = FALSE
 ) {
   # Setup
   min_eig <- 1e-3
@@ -47,7 +54,8 @@ fit_ib <- function(
     is.matrix(DATA$tab),
     inherits(PRIOR, "accmeta_prior"),
     inherits(CONTROL, "accmeta_ib_control"),
-    is.null(SEEDS) || (is.numeric(SEEDS) && length(SEEDS) == CONTROL$H)
+    is.null(SEEDS) || (is.numeric(SEEDS) && length(SEEDS) == CONTROL$H),
+    isTRUE(VCOV) || isFALSE(VCOV)
   )
 
   # manage seeds for reproducibility between serial and parallel exec
@@ -65,16 +73,7 @@ fit_ib <- function(
   # setup parallal cluster via mirai package
   use_parallel <- CONTROL$NCORES > 1L
   if (use_parallel) {
-    if (!requireNamespace("mirai", quietly = TRUE)) {
-      stop("NCORES > 1 needs the 'mirai' package.", call. = FALSE)
-    }
-    if (mirai::status()$connections > 0L) {
-      stop(
-        "Tear down your existing pool with mirai::daemons(0).",
-        call. = FALSE
-      )
-    }
-    mirai::daemons(min(CONTROL$NCORES, CONTROL$H))
+    ib_start_daemons(CONTROL$NCORES, CONTROL$H)
     on.exit(mirai::daemons(0), add = TRUE)
   }
   if (DATA$CC <= 0) {
@@ -316,12 +315,33 @@ fit_ib <- function(
     H = h_path[seq_len(iter)],
     SEEDS = SEEDS[seq_len(h)],
     PRIOR = PRIOR,
-    CONTROL = CONTROL
+    CONTROL = CONTROL,
+    WORKPAR = WORKPAR,
+    DATA = DATA
   )
   class(out) <- c("accmeta_ib", "accmeta_fit")
+  if (VCOV) {
+    if (use_parallel) {
+      mirai::daemons(0)
+    }
+    out$JACOBIAN <- ib_jacobian(out)
+  }
   return(out)
 }
 
+
+ib_start_daemons <- function(NCORES, N) {
+  if (!requireNamespace("mirai", quietly = TRUE)) {
+    stop("NCORES > 1 needs the 'mirai' package.", call. = FALSE)
+  }
+  if (mirai::daemons_set()) {
+    stop(
+      "Close your existing pool with mirai::daemons(0) before proceeding",
+      call. = FALSE
+    )
+  }
+  mirai::daemons(min(NCORES, N))
+}
 
 # critical value of the Hotelling t2 at level TOL with H draws
 ib_crit <- function(H, TOL, N_PARAMS = 9) {
@@ -346,7 +366,11 @@ project_pd <- function(THETA, MIN_EIG) {
 
 # single fit helper function
 ib_one_fit <- function(REP, SEEDS, THETA, N_STUDIES, N_I, CC, PRIOR, WORKPAR) {
-  set.seed(SEEDS[REP], kind = "Mersenne-Twister", normal.kind = "Inversion")
+  withr::local_seed(
+    SEEDS[REP],
+    .rng_kind = "Mersenne-Twister",
+    .rng_normal_kind = "Inversion"
+  )
 
   # attempts loop to defend from bad sims
   for (attempt in seq_len(10L)) {

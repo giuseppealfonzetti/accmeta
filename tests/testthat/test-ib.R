@@ -31,7 +31,7 @@ test_that("the result carries its path and diagnostics", {
   expect_named(f, c(
     "THETA", "PI_HAT", "N_ITER", "CONVERGED", "STOP", "RESIDUAL",
     "PROGRESS", "THRESHOLD", "PATH", "FAIL", "DEGEN", "HALVED", "STEPSIZE",
-    "GAP", "SE", "H", "SEEDS", "PRIOR", "CONTROL"
+    "GAP", "SE", "H", "SEEDS", "PRIOR", "CONTROL", "WORKPAR", "DATA"
   ))
   expect_length(f$THETA, 9)
   expect_identical(nrow(f$PATH), f$N_ITER + 1L)
@@ -57,7 +57,7 @@ test_that("NCORES > 1 refuses to run over a pre-existing pool", {
   on.exit(mirai::daemons(0), add = TRUE)
   expect_error(
     fit_ib(d, CONTROL = set_ib_control(H = 20, NCORES = 2, TERMINATION = "max_iter")),
-    "Tear down"
+    "Close your existing pool"
   )
 })
 
@@ -347,4 +347,30 @@ test_that("residual stops once the gap is within PRECISION / H of the IB limit",
   expect_lt(tail(r2, 1), tail(tol, 1))
   expect_true(all(head(r2, -1) >= head(tol, -1)))
   expect_equal(f$THETA, f$PATH[f$N_ITER, ])
+})
+
+test_that("fit_ib only advances the caller's RNG by the seed draw", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(10, th, rep(100, 10)), CC = 0.5)
+  ctrl <- set_ib_control(H = 20, MAX_ITER = 2, TERMINATION = "max_iter")
+  set.seed(10)
+  sample.int(.Machine$integer.max, 20)
+  expected <- runif(1)
+  set.seed(10)
+  fit_ib(d, CONTROL = ctrl)
+  expect_identical(runif(1), expected)
+})
+
+test_that("fit_ib leaves the caller's RNG kind and state untouched", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(10, th, rep(100, 10)), CC = 0.5)
+  withr::local_seed(1, .rng_kind = "L'Ecuyer-CMRG")
+  before <- .Random.seed
+  fit_ib(
+    d,
+    CONTROL = set_ib_control(H = 20, MAX_ITER = 2, TERMINATION = "max_iter"),
+    SEEDS = 1:20
+  )
+  expect_identical(RNGkind()[1], "L'Ecuyer-CMRG")
+  expect_identical(.Random.seed, before)
 })
