@@ -9,7 +9,8 @@ fit_ib(
   CONTROL = set_ib_control(),
   PRIOR = set_prior(),
   WORKPAR = c("Joe", "PinheiroBates"),
-  SEEDS = NULL
+  SEEDS = NULL,
+  VCOV = FALSE
 )
 }
 \arguments{
@@ -28,7 +29,14 @@ passed to the auxiliary \code{\link[=fit_tlmm]{fit_tlmm()}} fits.}
 \item{SEEDS}{Integer vector of length \code{H} seeding the simulated datasets. If
 \code{NULL}, drawn once and then held fixed. With \code{BOOST}, the seeds for up to
 \code{MAX_H} datasets are appended once, before any fit, so serial and parallel
-runs agree; the returned \code{SEEDS} are the ones used.}
+runs agree; the returned \code{SEEDS} are the ones used.
+When \code{NULL}, the seeds are drawn from the caller's RNG, which is the only
+change \code{fit_ib()} makes to the caller's RNG state.}
+
+\item{VCOV}{If \code{TRUE}, also computes the Jacobian at the estimate, stored as \code{JACOBIAN}, which
+\link[=vcov.accmeta_ib]{vcov()} and \link[=confint.accmeta_ib]{confint()} need. Its settings are the
+\verb{VCOV_*} entries of \code{\link[=set_ib_control]{set_ib_control()}}. It can be added later with
+\link[=update.accmeta_ib]{update()}.}
 }
 \value{
 An \code{accmeta_ib} object. \code{STOP} says why the iteration ended: \code{"tol"}

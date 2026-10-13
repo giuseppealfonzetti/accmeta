@@ -3,7 +3,8 @@ test_that("set_ib_control stores what it is given and fills the rest", {
   expect_s3_class(ctrl, "accmeta_ib_control")
   expect_named(ctrl, c(
     "H", "MAX_ITER", "TOL", "STEP", "PATIENCE", "TERMINATION",
-    "PRECISION", "BOOST", "BOOST_FACTOR", "MAX_H", "NCORES"
+    "PRECISION", "BOOST", "BOOST_FACTOR", "MAX_H", "NCORES",
+    "VCOV_H", "VCOV_N_NODES", "VCOV_N_ITER"
   ))
   expect_identical(ctrl$H, 100)
   expect_identical(ctrl$MAX_ITER, 100)
@@ -68,7 +69,11 @@ test_that("set_ib_control rejects impossible values", {
     "TERMINATION == \"confidence\""
   )
   expect_error(set_ib_control(BOOST = NA), "isTRUE")
-  expect_error(set_ib_control(H = 100, MAX_H = 50), "MAX_H >= H")
+  expect_error(
+    set_ib_control(H = 100, MAX_H = 50, TERMINATION = "confidence", BOOST = TRUE),
+    "MAX_H >= H"
+  )
+  expect_identical(set_ib_control(H = 1000)$H, 1000)
   expect_error(set_ib_control(BOOST_FACTOR = 1), "BOOST_FACTOR > 1")
   expect_error(set_ib_control(NCORES = "two"), "is.numeric")
   expect_error(set_ib_control(NCORES = 0), "NCORES >= 1")

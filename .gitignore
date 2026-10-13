@@ -2,3 +2,4 @@
 experiments/
 resources/
 /.quarto/
+.DS_store

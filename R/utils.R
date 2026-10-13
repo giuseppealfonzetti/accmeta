@@ -187,6 +187,17 @@ joe2theta <- function(JOEPAR) {
 #' @param MAX_H Upper bound on `H` when `BOOST = TRUE`.
 #' @param NCORES Number of cores to be passed to [mirai::daemons()]. Default `1` runs serially.
 #'   Values `> 1` for parallel computations across the H simulated datasets at each iteration.
+#'   Also used for the Jacobian behind [vcov()][vcov.accmeta_ib].
+#' @param VCOV_H Number of datasets simulated at the IB estimate to compute the Jacobian behind
+#'   [vcov()][vcov.accmeta_ib].
+#' @param VCOV_N_NODES Number of quadrature nodes per dimension of the TGLMM score used for the
+#'   Jacobian. See [fit_tglmm()]. The default keeps the quadrature error of the score far below the
+#'   Monte Carlo error of the Jacobian at a fraction of the cost of the `fit_tglmm()` default. The
+#'   quadrature error shrinks like \eqn{n^{-\lfloor (k+2)/3 \rfloor}} in the per-study counts
+#'   \eqn{n} for \eqn{k} nodes (Jin and Andersson, 2020), so studies with small counts may need
+#'   more nodes.
+#' @param VCOV_N_ITER Number of Newton steps locating the integrand mode in the TGLMM score used
+#'   for the Jacobian. See [fit_tglmm()].
 #'
 #' @return An object of class `accmeta_ib_control` to be passed to [fit_ib()] via `CONTROL` argumnet.
 #'
@@ -207,7 +218,10 @@ set_ib_control <- function(
   BOOST = FALSE,
   BOOST_FACTOR = 2,
   MAX_H = 500,
-  NCORES = 1L
+  NCORES = 1L,
+  VCOV_H = 1000,
+  VCOV_N_NODES = 7L,
+  VCOV_N_ITER = 10L
 ) {
   TERMINATION <- match.arg(TERMINATION)
   if (is.null(TOL)) {
@@ -241,10 +255,19 @@ set_ib_control <- function(
     BOOST_FACTOR > 1,
     is.numeric(MAX_H),
     length(MAX_H) == 1,
-    MAX_H >= H,
+    !BOOST || MAX_H >= H,
     is.numeric(NCORES),
     length(NCORES) == 1,
-    NCORES >= 1
+    NCORES >= 1,
+    is.numeric(VCOV_H),
+    length(VCOV_H) == 1,
+    VCOV_H > 18,
+    is.numeric(VCOV_N_NODES),
+    length(VCOV_N_NODES) == 1,
+    VCOV_N_NODES >= 2,
+    is.numeric(VCOV_N_ITER),
+    length(VCOV_N_ITER) == 1,
+    VCOV_N_ITER >= 1
   )
   h_top <- if (BOOST) MAX_H else H
   if (
@@ -273,7 +296,10 @@ set_ib_control <- function(
     BOOST = BOOST,
     BOOST_FACTOR = BOOST_FACTOR,
     MAX_H = MAX_H,
-    NCORES = NCORES
+    NCORES = NCORES,
+    VCOV_H = VCOV_H,
+    VCOV_N_NODES = VCOV_N_NODES,
+    VCOV_N_ITER = VCOV_N_ITER
   )
   class(out) <- "accmeta_ib_control"
   return(out)

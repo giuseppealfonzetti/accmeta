@@ -15,7 +15,10 @@ set_ib_control(
   BOOST = FALSE,
   BOOST_FACTOR = 2,
   MAX_H = 500,
-  NCORES = 1L
+  NCORES = 1L,
+  VCOV_H = 1000,
+  VCOV_N_NODES = 7L,
+  VCOV_N_ITER = 10L
 )
 }
 \arguments{
@@ -60,7 +63,21 @@ Only for \code{TERMINATION = "confidence"}.}
 \item{MAX_H}{Upper bound on \code{H} when \code{BOOST = TRUE}.}
 
 \item{NCORES}{Number of cores to be passed to \code{\link[mirai:daemons]{mirai::daemons()}}. Default \code{1} runs serially.
-Values \verb{> 1} for parallel computations across the H simulated datasets at each iteration.}
+Values \verb{> 1} for parallel computations across the H simulated datasets at each iteration.
+Also used for the Jacobian behind \link[=vcov.accmeta_ib]{vcov()}.}
+
+\item{VCOV_H}{Number of datasets simulated at the IB estimate to compute the Jacobian behind
+\link[=vcov.accmeta_ib]{vcov()}.}
+
+\item{VCOV_N_NODES}{Number of quadrature nodes per dimension of the TGLMM score used for the
+Jacobian. See \code{\link[=fit_tglmm]{fit_tglmm()}}. The default keeps the quadrature error of the score far below the
+Monte Carlo error of the Jacobian at a fraction of the cost of the \code{fit_tglmm()} default. The
+quadrature error shrinks like \eqn{n^{-\lfloor (k+2)/3 \rfloor}} in the per-study counts
+\eqn{n} for \eqn{k} nodes (Jin and Andersson, 2020), so studies with small counts may need
+more nodes.}
+
+\item{VCOV_N_ITER}{Number of Newton steps locating the integrand mode in the TGLMM score used
+for the Jacobian. See \code{\link[=fit_tglmm]{fit_tglmm()}}.}
 }
 \value{
 An object of class \code{accmeta_ib_control} to be passed to \code{\link[=fit_ib]{fit_ib()}} via \code{CONTROL} argumnet.
