@@ -4,13 +4,16 @@ test_that("set_ib_control stores what it is given and fills the rest", {
   expect_named(ctrl, c(
     "H", "MAX_ITER", "TOL", "STEP", "PATIENCE", "TERMINATION",
     "PRECISION", "BOOST", "BOOST_FACTOR", "MAX_H", "NCORES",
-    "VCOV_H", "VCOV_N_NODES", "VCOV_N_ITER"
+    "VCOV_H", "VCOV_N_NODES", "VCOV_N_ITER", "BOX_SD", "BOX_COR", "BOX_MU", "BOUNDARY"
   ))
   expect_identical(ctrl$H, 100)
-  expect_identical(ctrl$MAX_ITER, 100)
+  expect_null(ctrl$MAX_ITER)
+  expect_identical(ctrl$BOX_SD, c(0.1, 10))
+  expect_identical(ctrl$BOX_COR, 0.99)
+  expect_identical(ctrl$BOUNDARY, "stop")
   expect_identical(ctrl$TOL, 0.05)
   expect_identical(ctrl$STEP, 1)
-  expect_identical(ctrl$PATIENCE, 5L)
+  expect_identical(ctrl$PATIENCE, 30L)
   expect_identical(ctrl$NCORES, 1L)
   expect_identical(ctrl$TERMINATION, "residual")
   expect_identical(ctrl$PRECISION, 1)
@@ -47,7 +50,7 @@ test_that("set_ib_control stores what it is given and fills the rest", {
 
 test_that("set_ib_control rejects impossible values", {
   expect_error(set_ib_control(H = 9), "H > 9")
-  expect_error(set_ib_control(MAX_ITER = 0), "MAX_ITER >= 1")
+  expect_error(set_ib_control(MAX_ITER = 0), "MAX_ITER")
   expect_error(set_ib_control(TOL = 0), "TOL > 0")
   expect_error(set_ib_control(TOL = 1), "TOL < 1")
   expect_error(set_ib_control(TOL = 1.5), "TOL < 1")
@@ -77,6 +80,11 @@ test_that("set_ib_control rejects impossible values", {
   expect_error(set_ib_control(BOOST_FACTOR = 1), "BOOST_FACTOR > 1")
   expect_error(set_ib_control(NCORES = "two"), "is.numeric")
   expect_error(set_ib_control(NCORES = 0), "NCORES >= 1")
+  expect_error(set_ib_control(BOX_SD = c(1, 0.5)), "BOX_SD\\[1\\] < BOX_SD\\[2\\]")
+  expect_error(set_ib_control(BOX_SD = c(0, 1)), "BOX_SD\\[1\\] > 0")
+  expect_error(set_ib_control(BOX_COR = 1), "BOX_COR < 1")
+  expect_error(set_ib_control(BOX_MU = 0), "BOX_MU > 0")
+  expect_error(set_ib_control(BOUNDARY = "nope"), "should be one of")
 })
 
 test_that("fit_ib wants a control object and runs to budget on unreachable TOL", {

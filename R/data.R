@@ -7,7 +7,8 @@
 #' from \eqn{\xi_i}.
 #'
 #' @param N_STUDIES Number of studies to generate. A single positive integer.
-#' @param THETA Numeric vector of length 9. See [theta2list()].
+#' @param THETA Numeric vector of length 9, or 12 for skew-normal random
+#'   effects. See [theta2list()].
 #' @param N_I Numeric vector of length `N_STUDIES` giving the total sample size
 #'   \eqn{n_i} of each study. Entries must be positive integers.
 #'
@@ -33,9 +34,16 @@ sim_data <- function(N_STUDIES, THETA, N_I) {
     all(N_I == round(N_I))
   )
   par <- theta2list(THETA)
-  U <- matrix(stats::rnorm(3 * N_STUDIES), N_STUDIES, 3) %*%
-    chol(par$SIGMA) +
-    rep(par$MU, each = N_STUDIES)
+  if (length(THETA) == 9) {
+    U <- matrix(stats::rnorm(3 * N_STUDIES), N_STUDIES, 3) %*%
+      chol(par$SIGMA) +
+      rep(par$MU, each = N_STUDIES)
+  } else {
+    dp <- theta2dp(THETA)
+    dp <- list(xi = c(0, 0, 0), Omega = dp$Omega, alpha = dp$alpha)
+    U <- sn::rmsn(N_STUDIES, dp = dp) +
+      rep(par$MU - sn::dp2cp(dp, "SN", upto = 1)$mean, each = N_STUDIES)
+  }
   n1 <- stats::qbinom(stats::runif(N_STUDIES), N_I, stats::plogis(U[, 3]))
   n11 <- stats::qbinom(stats::runif(N_STUDIES), n1, stats::plogis(U[, 1]))
   n10 <- stats::qbinom(stats::runif(N_STUDIES), N_I - n1, stats::plogis(U[, 2]))

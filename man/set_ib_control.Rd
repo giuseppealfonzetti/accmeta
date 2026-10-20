@@ -6,10 +6,10 @@
 \usage{
 set_ib_control(
   H = 100,
-  MAX_ITER = 100,
+  MAX_ITER = NULL,
   TOL = NULL,
   STEP = 1,
-  PATIENCE = 5L,
+  PATIENCE = 30L,
   TERMINATION = c("residual", "confidence", "hotelling", "max_iter"),
   PRECISION = 1,
   BOOST = FALSE,
@@ -18,13 +18,18 @@ set_ib_control(
   NCORES = 1L,
   VCOV_H = 1000,
   VCOV_N_NODES = 7L,
-  VCOV_N_ITER = 10L
+  VCOV_N_ITER = 10L,
+  BOX_SD = c(0.1, 10),
+  BOX_COR = 0.99,
+  BOX_MU = 20,
+  BOUNDARY = c("stop", "project")
 )
 }
 \arguments{
 \item{H}{Number of datasets simulated per iteration.}
 
-\item{MAX_ITER}{Maximum number of iterations.}
+\item{MAX_ITER}{Maximum number of iterations. If \code{NULL}, 100, or 3 with a warning when the data
+have fewer than 15 studies, where further iterations tend to overcorrect.}
 
 \item{TOL}{Significance level \eqn{\alpha \in (0, 1)} of the \code{"hotelling"}
 and \code{"confidence"} tests (see \code{TERMINATION}). If \code{NULL}, \code{0.5} for
@@ -78,6 +83,17 @@ more nodes.}
 
 \item{VCOV_N_ITER}{Number of Newton steps locating the integrand mode in the TGLMM score used
 for the Jacobian. See \code{\link[=fit_tglmm]{fit_tglmm()}}.}
+
+\item{BOX_SD}{Range of the random-effect standard deviations kept by the IB updates; with
+\code{WORKPAR = "PinheiroBates"}, range of the diagonal of the Cholesky factor.}
+
+\item{BOX_COR}{Bound on the absolute partial correlations kept by the IB updates; with
+\code{WORKPAR = "PinheiroBates"}, the off-diagonal Cholesky entries are bounded by \code{BOX_SD[2]}.}
+
+\item{BOX_MU}{Bound on the absolute mean logits kept by the IB updates.}
+
+\item{BOUNDARY}{What the IB does when an update leaves the box: \code{"stop"} (default) stops and
+returns the last iterate before the contact; \code{"project"} projects it back and continues.}
 }
 \value{
 An object of class \code{accmeta_ib_control} to be passed to \code{\link[=fit_ib]{fit_ib()}} via \code{CONTROL} argumnet.

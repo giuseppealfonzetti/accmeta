@@ -30,7 +30,7 @@ test_that("the result carries its path and diagnostics", {
   f <- fit_ib(d, CONTROL = set_ib_control(H = 10, MAX_ITER = 3, TERMINATION = "max_iter"), SEEDS = 1:10)
   expect_named(f, c(
     "THETA", "PI_HAT", "N_ITER", "CONVERGED", "STOP", "RESIDUAL",
-    "PROGRESS", "THRESHOLD", "PATH", "FAIL", "DEGEN", "HALVED", "STEPSIZE",
+    "PROGRESS", "THRESHOLD", "PATH", "FAIL", "DEGEN", "ACTIVE", "RATIO",
     "GAP", "SE", "H", "SEEDS", "PRIOR", "CONTROL", "WORKPAR", "DATA"
   ))
   expect_length(f$THETA, 9)
@@ -38,13 +38,14 @@ test_that("the result carries its path and diagnostics", {
   expect_length(f$FAIL, f$N_ITER)
   expect_length(f$DEGEN, f$N_ITER)
   expect_length(f$PROGRESS, f$N_ITER)
-  expect_length(f$HALVED, f$N_ITER)
-  expect_length(f$STEPSIZE, f$N_ITER)
+  expect_identical(dim(f$ACTIVE), c(f$N_ITER, 9L))
+  expect_length(f$RATIO, f$N_ITER)
+  expect_true(is.na(f$RATIO[1]))
   expect_length(f$THRESHOLD, f$N_ITER)
   expect_identical(dim(f$GAP), c(f$N_ITER, 9L))
   expect_identical(dim(f$SE), c(f$N_ITER, 9L))
   expect_equal(f$PATH[1, ], f$PI_HAT)
-  expect_identical(sum(f$HALVED), 0L)
+  expect_false(any(f$ACTIVE))
   expect_equal(f$PI_HAT, fit_tlmm(d, PRIOR = set_prior(), WORKPAR = "Joe")$THETA)
   expect_equal(f$THETA, f$PATH[which.min(f$PROGRESS), ])
 })
@@ -242,7 +243,13 @@ test_that("the correction moves the estimate", {
   expect_lt(max(f$DEGEN), 0.5)
 })
 
-test_that("a boundary start is projected inward", {
+in_box <- function(THETA, CONTROL = set_ib_control(), WORKPAR = "Joe") {
+  box <- accmeta:::ib_box(WORKPAR, CONTROL)
+  w <- accmeta:::ib_to_work(THETA, WORKPAR)[1:9]
+  all(w >= box$L - 1e-8 & w <= box$U + 1e-8)
+}
+
+test_that("a degenerate start is clamped into the box", {
   sd_true <- sqrt(c(1.2, 0.5, 0.25))
   cor_true <- matrix(c(1, -0.6, 0.7, -0.6, 1, -0.7, 0.7, -0.7, 1), 3, 3)
   tv <- list2theta(list(
@@ -255,8 +262,7 @@ test_that("a boundary start is projected inward", {
   d <- set_meta_data(sim_data(15, tv, ss), CC = 0.5)
 
   flat <- fit_tlmm(d, PRIOR = set_prior(4), WORKPAR = "Joe")$THETA
-  ev <- eigen(theta2list(flat)$SIGMA, symmetric = TRUE, only.values = TRUE)$values
-  expect_lt(min(ev), 1e-4)
+  expect_false(in_box(flat))
 
   f <- suppressWarnings(
     fit_ib(
@@ -266,15 +272,11 @@ test_that("a boundary start is projected inward", {
   )
   expect_true(all(is.finite(f$THETA)))
   expect_equal(f$PI_HAT, flat)
-  expect_false(isTRUE(all.equal(f$PATH[1, ], f$PI_HAT)))
-  start_ev <- eigen(
-    theta2list(f$PATH[1, ])$SIGMA,
-    symmetric = TRUE, only.values = TRUE
-  )$values
-  expect_gte(min(start_ev), 1e-4 - 1e-9)
+  expect_true(in_box(f$PATH[1, ]))
+  expect_true(all(apply(f$PATH, 1, in_box)))
 })
 
-test_that("a runaway update is halved, and a boundary root stops early", {
+boundary_fixture <- function(SEED) {
   sd_true <- sqrt(c(1.2, 0.5, 0.25))
   cor_true <- matrix(c(1, -0.6, 0.7, -0.6, 1, -0.7, 0.7, -0.7, 1), 3, 3)
   tv <- list2theta(list(
@@ -283,23 +285,90 @@ test_that("a runaway update is halved, and a boundary root stops early", {
   ))
   set.seed(123)
   ss <- sample(40:200, 15, TRUE)
+  set.seed(SEED)
+  set_meta_data(sim_data(15, tv, ss), CC = 0.5)
+}
+
+test_that("a boundary root is clamped and converges with outward gaps", {
+  d <- boundary_fixture(5)
+  ctrl <- set_ib_control(H = 20, MAX_ITER = 40, BOX_COR = 0.9, BOUNDARY = "project")
+  f <- fit_ib(d, CONTROL = ctrl, SEEDS = 1:20)
+  expect_identical(f$STOP, "tol")
+  expect_true(all(apply(f$PATH, 1, in_box, CONTROL = ctrl)))
+  k <- which(apply(f$PATH, 1, function(P) isTRUE(all.equal(P, f$THETA))))[1]
+  box <- accmeta:::ib_box("Joe", ctrl)
+  w <- accmeta:::ib_to_work(f$THETA, "Joe")
+  at_l <- abs(w - box$L) < 1e-8
+  at_u <- abs(w - box$U) < 1e-8
+  expect_true(any(at_l | at_u))
+  expect_true(all(f$GAP[k, at_l] <= 0))
+  expect_true(all(f$GAP[k, at_u] >= 0))
+})
+
+test_that("BOUNDARY = \"stop\" returns the projected path up to the first contact", {
+  d <- boundary_fixture(5)
+  ctrl <- set_ib_control(H = 20, MAX_ITER = 40, BOX_COR = 0.9)
+  expect_identical(ctrl$BOUNDARY, "stop")
+  p <- fit_ib(d, CONTROL = set_ib_control(H = 20, MAX_ITER = 40, BOX_COR = 0.9, BOUNDARY = "project"), SEEDS = 1:20)
+  s <- fit_ib(d, CONTROL = ctrl, SEEDS = 1:20)
+  k <- which(apply(p$ACTIVE, 1, any))[1]
+  expect_identical(s$STOP, "boundary")
+  expect_false(s$CONVERGED)
+  expect_identical(s$N_ITER, k)
+  expect_equal(s$THETA, p$PATH[k, ])
+  expect_equal(s$THETA, s$PATH[s$N_ITER, ])
+  expect_equal(s$PATH, p$PATH[seq_len(k + 1), , drop = FALSE])
+  expect_true(in_box(s$THETA, ctrl))
+})
+
+test_that("RATIO flags a non-contracting IB under the ML auxiliary", {
+  d <- boundary_fixture(1)
+  f <- suppressWarnings(fit_ib(
+    d, CONTROL = set_ib_control(H = 20, MAX_ITER = 40, BOX_COR = 0.9, BOUNDARY = "project"),
+    PRIOR = set_prior(4), SEEDS = 1:20
+  ))
+  expect_true(f$STOP %in% c("stall", "maxit"))
+  expect_true(all(apply(f$PATH, 1, in_box, CONTROL = f$CONTROL)))
+  expect_gt(stats::median(tail(f$RATIO, 5)), 0.9)
+})
+
+test_that("the projected iteration has a unique fixed point with outward gaps", {
+  box <- accmeta:::ib_box("Joe", set_ib_control())
+  A <- diag(0.6, 9)
+  A[1, 4] <- 0.3
+  gap <- function(X, ROOT) drop(A %*% (ROOT - X))
+  iterate <- function(X, ROOT) {
+    for (i in 1:300) X <- accmeta:::ib_project(X + gap(X, ROOT), box, "Joe")$WORK
+    X
+  }
+  root <- c(1, -1, 0.5, log(0.001), log(0.5), log(2), 3, 0, -0.2)
+  x1 <- iterate(rep(0, 9), root)
+  x2 <- iterate((box$L + box$U) / 2 + 1, root)
+  expect_equal(x1, x2)
+  g <- gap(x1, root)
+  at_l <- abs(x1 - box$L) < 1e-12
+  at_u <- abs(x1 - box$U) < 1e-12
+  expect_identical(which(at_l), 4L)
+  expect_identical(which(at_u), 7L)
+  expect_lt(max(abs(g[!at_l & !at_u])), 1e-10)
+  expect_lte(g[4], 0)
+  expect_gte(g[7], 0)
+  inside <- c(1, -1, 0.5, log(0.2), log(0.5), log(2), 1, 0, -0.2)
+  expect_equal(iterate(rep(0, 9), inside), inside)
+})
+
+test_that("the Joe box keeps Sigma away from singularity", {
+  ctrl <- set_ib_control()
+  box <- accmeta:::ib_box("Joe", ctrl)
+  floor <- ctrl$BOX_SD[1]^2 / cosh(atanh(ctrl$BOX_COR))^6 / 9
   set.seed(1)
-  d <- set_meta_data(sim_data(15, tv, ss), CC = 0.5)
-  f <- suppressWarnings(
-    fit_ib(
-      d,
-      CONTROL = set_ib_control(
-        H = 20, MAX_ITER = 6, STEP = 1, TERMINATION = "confidence"
-      ),
-      PRIOR = set_prior(4), SEEDS = 1:20
-    )
-  )
-  expect_true(all(is.finite(f$THETA)))
-  expect_gt(sum(f$HALVED), 0)
-  expect_identical(f$STOP, "boundary")
-  expect_true(all(tail(f$HALVED, 2) > 0))
-  expect_false(f$CONVERGED)
-  expect_equal(f$THETA, f$PATH[which.min(f$PROGRESS), ])
+  ev <- replicate(2000, {
+    w <- stats::runif(9, box$L, box$U)
+    w[4:6] <- box$L[4:6]
+    w[7:9] <- sample(c(-1, 1), 3, TRUE) * box$U[7:9]
+    min(eigen(theta2list(joe2theta(w))$SIGMA, symmetric = TRUE, only.values = TRUE)$values)
+  })
+  expect_gte(min(ev), floor)
 })
 
 test_that("max_iter runs the whole budget past the early stops", {
@@ -373,4 +442,21 @@ test_that("fit_ib leaves the caller's RNG kind and state untouched", {
   )
   expect_identical(RNGkind()[1], "L'Ecuyer-CMRG")
   expect_identical(.Random.seed, before)
+})
+
+test_that("fewer than 15 studies stop the IB after 3 steps by default", {
+  set.seed(1)
+  d <- set_meta_data(sim_data(10, th, rep(100, 10)), CC = 0.5)
+  expect_warning(
+    f <- fit_ib(d, CONTROL = set_ib_control(H = 20), SEEDS = 1:20),
+    "fewer than 15 studies"
+  )
+  expect_identical(f$CONTROL$MAX_ITER, 3)
+  expect_lte(f$N_ITER, 3)
+  if (f$STOP == "maxit") expect_equal(f$THETA, f$PATH[nrow(f$PATH), ])
+  expect_no_warning(fit_ib(d, CONTROL = set_ib_control(H = 20, MAX_ITER = 3), SEEDS = 1:20))
+  set.seed(1)
+  d15 <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
+  expect_no_warning(g <- fit_ib(d15, CONTROL = set_ib_control(H = 20), SEEDS = 1:20))
+  expect_identical(g$CONTROL$MAX_ITER, 100)
 })

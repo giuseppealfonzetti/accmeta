@@ -10,7 +10,12 @@ theta2list(THETA)
 \item{THETA}{Numeric vector of length 9. Entries 1 to 3 are the random-effects
 means \eqn{(\bar\eta, \bar\xi, \bar\gamma)}. Entries 4 to 9 are the
 log-Cholesky factor of \eqn{\Sigma_3} in row-major lower-triangular order
-\eqn{(log(L_{11}), L_{21}, log(L_{22}), L_{31}, L_{32}, log(L_{33})}).}
+\eqn{(log(L_{11}), L_{21}, log(L_{22}), L_{31}, L_{32}, log(L_{33})}).
+Length 12 for skew-normal random effects, in the original parameterisation
+of \code{\link[sn:dp2op]{sn::dp2op()}}: entries 1 to 3 are then the location, 4 to 9 the
+log-Cholesky factor of \eqn{\Psi} and 10 to 12 the slant \eqn{\lambda};
+the list then reports the mean, the covariance and \code{SKEW}, the marginal
+skewness of each component.}
 }
 \value{
 A list with two components: \code{MU}, the length-3 mean vector, and

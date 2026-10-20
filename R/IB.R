@@ -20,8 +20,11 @@
 #'   [update()][update.accmeta_ib].
 #'
 #' @return An `accmeta_ib` object. `STOP` says why the iteration ended: `"tol"`
-#'   (the convergence test passed), `"boundary"` (no valid generative model available for next iteration),
-#'   `"stall"` (no improvement for `PATIENCE` iterations) or `"maxit"`.
+#'   (the convergence test passed), `"stall"` (no improvement for `PATIENCE` iterations),
+#'   `"boundary"` (first contact with the box when `BOUNDARY = "stop"`, in which case `THETA` is
+#'   the last iterate before the contact) or `"maxit"`, in which case `THETA` is the last iterate. Each update is projected onto the box of [set_ib_control()]; `ACTIVE` flags, by
+#'   iteration, the working coordinates moved by the projection, and `RATIO` is the ratio of
+#'   successive projected steps, an empirical contraction rate.
 #'
 #' @seealso [fit_tlmm()] for the auxiliary estimator, [set_ib_control()] for the
 #'   control settings, and [set_prior()] for the prior specification.
@@ -43,9 +46,8 @@ fit_ib <- function(
   VCOV = FALSE
 ) {
   # Setup
-  min_eig <- 1e-3
   n_params <- 9
-  # run the whole budget: no convergence, stall or boundary stops
+  # run the whole budget: no convergence or stall stops
   budget_only <- CONTROL$TERMINATION == "max_iter"
 
   WORKPAR <- match.arg(WORKPAR)
@@ -76,6 +78,16 @@ fit_ib <- function(
     ib_start_daemons(CONTROL$NCORES, CONTROL$H)
     on.exit(mirai::daemons(0), add = TRUE)
   }
+  if (is.null(CONTROL$MAX_ITER)) {
+    CONTROL$MAX_ITER <- if (DATA$n_studies < 15) 3 else 100
+    if (DATA$n_studies < 15) {
+      warning(
+        "fewer than 15 studies: the IB is stopped after 3 steps, where further ",
+        "iterations tend to overcorrect; set MAX_ITER to override.",
+        call. = FALSE
+      )
+    }
+  }
   if (DATA$CC <= 0) {
     stop(
       "DATA must carry a continuity correction. See `?set_meta_data()`",
@@ -87,16 +99,17 @@ fit_ib <- function(
 
   # initial estimate
   pi_hat <- fit_tlmm(DATA, PRIOR = PRIOR, WORKPAR = WORKPAR)$THETA
-  pi_hat_work <- if (WORKPAR == "Joe") theta2joe(pi_hat) else pi_hat
-  theta <- project_pd(pi_hat, min_eig)
+  pi_hat_work <- ib_to_work(pi_hat, WORKPAR)
+  box <- ib_box(WORKPAR, CONTROL)
+  theta <- ib_from_work(ib_project(pi_hat_work, box, WORKPAR)$WORK, WORKPAR)
 
   # initialise path tracking
   path <- matrix(NA, CONTROL$MAX_ITER + 1, n_params)
   path[1, ] <- theta
   fail <- integer(CONTROL$MAX_ITER)
   degen <- numeric(CONTROL$MAX_ITER)
-  halved <- integer(CONTROL$MAX_ITER)
-  stepsize <- rep(NA, CONTROL$MAX_ITER)
+  active_path <- matrix(FALSE, CONTROL$MAX_ITER, n_params)
+  ratio <- rep(NA, CONTROL$MAX_ITER)
   gap_path <- matrix(NA, CONTROL$MAX_ITER, n_params)
   se_path <- matrix(NA, CONTROL$MAX_ITER, n_params)
   progress <- rep(NA, CONTROL$MAX_ITER)
@@ -116,7 +129,8 @@ fit_ib <- function(
 
   # sample size boosting (confidence termination), as in ergm
   h <- CONTROL$H
-  gap_last <- NULL
+  res_last <- NULL
+  step_last <- NULL
   not_improved <- rep(FALSE, 4)
 
   # root finding loop
@@ -134,7 +148,7 @@ fit_ib <- function(
         USE_PARALLEL = use_parallel,
         PI_HAT_WORK = pi_hat_work,
         WORKPAR = WORKPAR,
-        MIN_EIG = min_eig
+        MIN_EIG = 1e-3
       )
     }
     if (is.null(gap_summary)) {
@@ -168,18 +182,28 @@ fit_ib <- function(
       )
     }
 
+    # projected update and residual
+    theta_work <- ib_to_work(theta, WORKPAR)
+    proj <- ib_project(theta_work + CONTROL$STEP * gap_summary$GAP, box, WORKPAR)
+    step_k <- proj$WORK - theta_work
+    res <- step_k / CONTROL$STEP
+    active_path[iter, ] <- proj$ACTIVE
+    if (!is.null(step_last)) {
+      ratio[iter] <- sqrt(sum(step_k^2)) / sqrt(sum(step_last^2))
+    }
+    step_last <- step_k
+
     # add small diagonal constant for stability
-    vcov_reg <- gap_summary$V +
-      diag(1e-8 * pmax(diag(gap_summary$V), 1e-12), n_params)
+    live <- diag(gap_summary$V) > 1e-10 * max(diag(gap_summary$V)) &
+      !(proj$ACTIVE & abs(res) < 1e-8)
+    vcov_reg <- gap_summary$V[live, live, drop = FALSE] +
+      diag(1e-8 * pmax(diag(gap_summary$V)[live], 1e-12), sum(live))
 
     # compute hotelling t2 for convergence test
-    t2 <- drop(crossprod(
-      gap_summary$GAP,
-      solve(vcov_reg, gap_summary$GAP)
-    ))
+    t2 <- drop(crossprod(res[live], solve(vcov_reg, res[live])))
 
     # threshold on t2. Inspired by {ergm} stopping criteria for MCMLE
-    crit <- ib_crit(h_ok, CONTROL$TOL, n_params)
+    crit <- ib_crit(h_ok, CONTROL$TOL, sum(live))
     threshold <- switch(
       CONTROL$TERMINATION,
       hotelling = crit,
@@ -190,12 +214,12 @@ fit_ib <- function(
     )
 
     r2 <- t2 / (h_ok - 1)
-    if (!is.null(gap_last)) {
-      r2_last <- drop(crossprod(gap_last, solve(vcov_reg, gap_last))) /
+    if (!is.null(res_last)) {
+      r2_last <- drop(crossprod(res_last[live], solve(vcov_reg, res_last[live]))) /
         (h_ok - 1)
       not_improved <- c(not_improved[-1], r2 >= r2_last)
     }
-    gap_last <- gap_summary$GAP
+    res_last <- res
 
     # track t2-related quantities
     progress[iter] <- t2
@@ -208,28 +232,8 @@ fit_ib <- function(
     }
 
     # update estimates
-    theta_work <- if (WORKPAR == "Joe") theta2joe(theta) else theta
-    step <- ib_step_fixedpoint(
-      THETA_WORK = theta_work,
-      GAP = gap_summary$GAP,
-      STEP = CONTROL$STEP,
-      WORKPAR = WORKPAR,
-      MIN_EIG = min_eig
-    )
-
-    # store update-realted quantities
-    halved[iter] <- step$HALVED
-    stepsize[iter] <- step$STEPSIZE
     gap_summary <- NULL
-
-    # no positive-definite step left
-    if (is.null(step$THETA)) {
-      stop_rule <- "boundary"
-      break
-    }
-
-    # store thate
-    theta <- step$THETA
+    theta <- ib_from_work(proj$WORK, WORKPAR)
     path[iter + 1, ] <- theta
     filled <- iter + 1L
 
@@ -242,14 +246,10 @@ fit_ib <- function(
       break
     }
 
-    # root on the boundary
-    if (
-      !budget_only &&
-        iter > 1 &&
-        halved[iter] > 0 &&
-        halved[iter - 1] > 0 &&
-        best_iter < iter
-    ) {
+    # stop at the first contact with the box
+    if (!budget_only && CONTROL$BOUNDARY == "stop" && any(proj$ACTIVE)) {
+      best_theta <- path[iter, ]
+      best_t2 <- t2
       stop_rule <- "boundary"
       break
     }
@@ -288,6 +288,10 @@ fit_ib <- function(
     }
   }
 
+  if (stop_rule == "maxit" && !budget_only) {
+    best_theta <- path[filled, ]
+  }
+
   # report explicitely failed fits
   if (sum(fail[seq_len(iter)]) > 0) {
     warning(
@@ -308,8 +312,8 @@ fit_ib <- function(
     PATH = path[seq_len(filled), , drop = FALSE],
     FAIL = fail[seq_len(iter)],
     DEGEN = degen[seq_len(iter)],
-    HALVED = halved[seq_len(iter)],
-    STEPSIZE = stepsize[seq_len(iter)],
+    ACTIVE = active_path[seq_len(iter), , drop = FALSE],
+    RATIO = ratio[seq_len(iter)],
     GAP = gap_path[seq_len(iter), , drop = FALSE],
     SE = se_path[seq_len(iter), , drop = FALSE],
     H = h_path[seq_len(iter)],
@@ -351,17 +355,31 @@ ib_crit <- function(H, TOL, N_PARAMS = 9) {
     stats::qf(1 - TOL, N_PARAMS, H - N_PARAMS)
 }
 
-# ensure pd reff sigma
-project_pd <- function(THETA, MIN_EIG) {
-  li <- theta2list(THETA)
-  eig <- eigen(li$SIGMA, symmetric = TRUE)
-  if (min(eig$values) >= MIN_EIG) {
-    return(THETA)
+ib_box <- function(WORKPAR, CONTROL) {
+  mu <- rep(CONTROL$BOX_MU, 3)
+  sd <- log(CONTROL$BOX_SD)
+  if (WORKPAR == "Joe") {
+    z <- rep(atanh(CONTROL$BOX_COR), 3)
+    return(list(L = c(-mu, rep(sd[1], 3), -z), U = c(mu, rep(sd[2], 3), z)))
   }
-  sigma <- eig$vectors %*%
-    diag(pmax(eig$values, MIN_EIG), 3, 3) %*%
-    t(eig$vectors)
-  list2theta(list(MU = li$MU, SIGMA = (sigma + t(sigma)) / 2))
+  off <- CONTROL$BOX_SD[2]
+  list(
+    L = c(-mu, sd[1], -off, sd[1], -off, -off, sd[1]),
+    U = c(mu, sd[2], off, sd[2], off, off, sd[2])
+  )
+}
+
+ib_project <- function(WORK, BOX, WORKPAR) {
+  out <- pmin(pmax(WORK, BOX$L), BOX$U)
+  list(WORK = out, ACTIVE = out != WORK)
+}
+
+ib_to_work <- function(THETA, WORKPAR) {
+  if (WORKPAR == "Joe") theta2joe(THETA) else THETA
+}
+
+ib_from_work <- function(WORK, WORKPAR) {
+  if (WORKPAR == "Joe") joe2theta(WORK) else WORK
 }
 
 # single fit helper function
@@ -448,9 +466,7 @@ ib_gap <- function(
     ) <
       MIN_EIG
   }))
-  if (WORKPAR == "Joe") {
-    sim_ok <- t(apply(sim_ok, 1, theta2joe))
-  }
+  sim_ok <- t(apply(sim_ok, 1, ib_to_work, WORKPAR = WORKPAR))
   h_ok <- nrow(sim_ok)
   list(
     GAP = PI_HAT_WORK - colMeans(sim_ok),
@@ -460,36 +476,4 @@ ib_gap <- function(
     FAIL = sum(!ok),
     DEGEN = degen
   )
-}
-
-# update with eventual stepsize halvening
-ib_step_fixedpoint <- function(THETA_WORK, GAP, STEP, WORKPAR, MIN_EIG) {
-  step <- STEP
-  halved <- 0L
-  cand <- NULL
-  repeat {
-    proposal <- THETA_WORK + step * GAP
-    trial <- try(
-      if (WORKPAR == "Joe") joe2theta(proposal) else proposal,
-      silent = TRUE
-    )
-    valid <- !inherits(trial, "try-error") && all(is.finite(trial))
-    if (valid) {
-      sigma <- theta2list(trial)$SIGMA
-      valid <- all(is.finite(sigma)) &&
-        min(eigen(sigma, symmetric = TRUE, only.values = TRUE)$values) >=
-          MIN_EIG &&
-        !inherits(try(chol(sigma), silent = TRUE), "try-error")
-    }
-    if (valid) {
-      cand <- trial
-      break
-    }
-    step <- step / 2
-    halved <- halved + 1L
-    if (step < STEP * 2^-19) {
-      break
-    }
-  }
-  list(THETA = cand, HALVED = halved, STEPSIZE = step)
 }

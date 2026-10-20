@@ -8,7 +8,9 @@ list2theta(LIST)
 }
 \arguments{
 \item{LIST}{A list with components \code{MU}, a numeric vector of length 3, and
-\code{SIGMA}, a 3x3 symmetric positive-definite matrix.}
+\code{SIGMA}, a 3x3 symmetric positive-definite matrix. Optionally \code{SKEW}, the
+length-3 marginal skewness of skew-normal random effects, which must be
+admissible for \code{SIGMA}.}
 }
 \value{
 A numeric vector of length 9, in the layout documented for
