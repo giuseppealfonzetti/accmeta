@@ -10,7 +10,7 @@ sim_data(N_STUDIES, THETA, N_I)
 \item{N_STUDIES}{Number of studies to generate. A single positive integer.}
 
 \item{THETA}{Numeric vector of length 9, or 12 for skew-normal random
-effects. See \code{\link[=theta2list]{theta2list()}}.}
+effects, which need the 'sn' package. See \code{\link[=theta2list]{theta2list()}}.}
 
 \item{N_I}{Numeric vector of length \code{N_STUDIES} giving the total sample size
 \eqn{n_i} of each study. Entries must be positive integers.}

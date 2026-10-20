@@ -58,7 +58,7 @@ test_that("vcov is the sandwich on the working scale", {
   v <- vcov(fit)
   expect_equal(
     unname(v),
-    (1 + 1 / fit$H[length(fit$H)]) * j_inv %*% jac$V %*% t(j_inv)
+    (1 + 1 / fit$CONTROL$H) * j_inv %*% jac$V %*% t(j_inv)
   )
   expect_true(isSymmetric(v))
   expect_identical(rownames(v)[c(1, 9)], c("mu_eta", "z_rho23_1"))

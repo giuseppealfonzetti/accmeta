@@ -135,7 +135,7 @@ vcov.accmeta_ib <- function(object, ...) {
     )
   }
   j_inv <- solve(jac$J)
-  out <- (1 + 1 / object$H[length(object$H)]) * j_inv %*% jac$V %*% t(j_inv)
+  out <- (1 + 1 / object$CONTROL$H) * j_inv %*% jac$V %*% t(j_inv)
   nm <- ib_work_names(object$WORKPAR)
   dimnames(out) <- list(nm, nm)
   out
@@ -177,7 +177,7 @@ confint.accmeta_ib <- function(
   } else {
     jac <- object$JACOBIAN
     pi_dev <- sweep(jac$PI, 2, colMeans(jac$PI))
-    theta_dev <- sqrt(1 + 1 / object$H[length(object$H)]) *
+    theta_dev <- sqrt(1 + 1 / object$CONTROL$H) *
       t(solve(jac$J, t(pi_dev)))
     theta -
       t(apply(

@@ -3,21 +3,21 @@ Title: Meta-analysis of diagnostic accuracy
 Version: 0.0.0.9000
 Authors@R: 
     c(
-        person("Giuseppe", "Alfonzetti", , "giuseppe.alfonzetti@uniud.it", role = c("aut", "cre")),
+        person("Giuseppe", "Alfonzetti", , "giuseppe.alfonzetti@unipd.it", role = c("aut", "cre")),
         person("Ruggero", "Bellio", , "ruggero.bellio@uniud.it", role = c("aut")),
         person("Stéphane", "Guerrier", , "stef.guerrier@gmail.com", role = c("aut")),
         person("Annamaria", "Guolo", , "annamaria.guolo@unipd.it", role = c("aut"))
     )
-Description: Meta-analysis of diagnostic accuracy in terms of sensitivity, specificity and prevalence.
+Description: Trivariate meta-analytic models of diagnostic accuracy, for sensitivity, specificity and prevalence.
 License: MIT + file LICENSE
 Suggests:
     mirai (>= 2.3.0),
+    sn,
     testthat (>= 3.0.0)
 LinkingTo:
     RcppEigen,
     TMB
 Imports:
-    sn,
     statmod,
     stats,
     TMB (>= 1.7.15),

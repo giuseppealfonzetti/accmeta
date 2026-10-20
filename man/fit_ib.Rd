@@ -27,9 +27,7 @@ or \code{"Joe"} (default) based on unconstrained partial correlations. Also
 passed to the auxiliary \code{\link[=fit_tlmm]{fit_tlmm()}} fits.}
 
 \item{SEEDS}{Integer vector of length \code{H} seeding the simulated datasets. If
-\code{NULL}, drawn once and then held fixed. With \code{BOOST}, the seeds for up to
-\code{MAX_H} datasets are appended once, before any fit, so serial and parallel
-runs agree; the returned \code{SEEDS} are the ones used.
+\code{NULL}, drawn once and then held fixed, so serial and parallel runs agree.
 When \code{NULL}, the seeds are drawn from the caller's RNG, which is the only
 change \code{fit_ib()} makes to the caller's RNG state.}
 
@@ -39,12 +37,12 @@ change \code{fit_ib()} makes to the caller's RNG state.}
 \link[=update.accmeta_ib]{update()}.}
 }
 \value{
-An \code{accmeta_ib} object. \code{STOP} says why the iteration ended: \code{"tol"}
+An \code{accmeta_ib} object. \code{STOP} says why the iteration ended: \code{"converged"}
 (the convergence test passed), \code{"stall"} (no improvement for \code{PATIENCE} iterations),
-\code{"boundary"} (first contact with the box when \code{BOUNDARY = "stop"}, in which case \code{THETA} is
-the last iterate before the contact) or \code{"maxit"}, in which case \code{THETA} is the last iterate. Each update is projected onto the box of \code{\link[=set_ib_control]{set_ib_control()}}; \code{ACTIVE} flags, by
-iteration, the working coordinates moved by the projection, and \code{RATIO} is the ratio of
-successive projected steps, an empirical contraction rate.
+\code{"boundary"} (the next update would leave the box of \code{\link[=set_ib_control]{set_ib_control()}}, in which case
+\code{THETA} is the last iterate inside it) or \code{"maxit"}, in which case \code{THETA} is the last
+iterate. The TLMM start is clamped into the box. \code{RATIO} is the ratio of successive steps,
+an empirical contraction rate.
 }
 \description{
 Iterative bootstrap bias correction for TLMM

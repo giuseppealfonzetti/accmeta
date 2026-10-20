@@ -226,34 +226,20 @@ joe2theta <- function(JOEPAR) {
 #' @param H Number of datasets simulated per iteration.
 #' @param MAX_ITER Maximum number of iterations. If `NULL`, 100, or 3 with a warning when the data
 #'   have fewer than 15 studies, where further iterations tend to overcorrect.
-#' @param TOL Significance level \eqn{\alpha \in (0, 1)} of the `"hotelling"`
-#'   and `"confidence"` tests (see `TERMINATION`). If `NULL`, `0.5` for
-#'   `"hotelling"` and `0.05` otherwise. Ignored for `"residual"` and
-#'   `"max_iter"`.
 #' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
 #' @param PATIENCE Stop after this many iterations with no improvement in the
 #'   best convergence statistic (returning the best iterate seen). Ignored for
 #'   `"max_iter"`.
 #' @param TERMINATION Stopping rule, based on the IB gap \eqn{\bar g} and the
 #'   sample covariance \eqn{S} of the \eqn{H} simulated estimates:
-#'   `"residual"` (default) stops when \eqn{\bar g^\top S^{-1} \bar g <}
+#'   `"mahalanobis"` (default) stops when \eqn{\bar g^\top S^{-1} \bar g <}
 #'   `PRECISION`\eqn{/H}, i.e. when the next step is within `sqrt(PRECISION)`
 #'   Monte Carlo standard deviations of the IB estimator;
-#'   `"hotelling"` stops when the Hotelling test of \eqn{H_0: E[g] = 0} is
-#'   not rejected;
-#'   `"confidence"` stops when the \eqn{1 - \alpha} Hotelling confidence
-#'   ellipsoid of the gap lies inside the tolerance region
-#'   \eqn{\delta^\top \Sigma^{-1} \delta \le} `PRECISION`, with \eqn{\Sigma} the
-#'   covariance of a single simulated estimate;
-#'   `"max_iter"` runs all `MAX_ITER` iterations with no test and returns the
-#'   best iterate seen.
-#' @param PRECISION Squared tolerance: for `"residual"`, in units of the Monte
-#'   Carlo variance \eqn{1/H}; for `"confidence"`, the squared equivalence
-#'   margin in squared standard deviations of the estimator.
-#' @param BOOST If `TRUE`, increases `H` when the `"confidence"` test fails.
-#'   Only for `TERMINATION = "confidence"`.
-#' @param BOOST_FACTOR Maximum multiplicative growth of `H` when `BOOST = TRUE`.
-#' @param MAX_H Upper bound on `H` when `BOOST = TRUE`.
+#'   `"max_iter"` runs all `MAX_ITER` iterations with no convergence or stall
+#'   stop and returns the best iterate seen. Either way, an update leaving the
+#'   box stops the IB.
+#' @param PRECISION Squared tolerance of `"mahalanobis"`, in units of the Monte
+#'   Carlo variance \eqn{1/H}.
 #' @param NCORES Number of cores to be passed to [mirai::daemons()]. Default `1` runs serially.
 #'   Values `> 1` for parallel computations across the H simulated datasets at each iteration.
 #'   Also used for the Jacobian behind [vcov()][vcov.accmeta_ib].
@@ -267,13 +253,12 @@ joe2theta <- function(JOEPAR) {
 #'   more nodes.
 #' @param VCOV_N_ITER Number of Newton steps locating the integrand mode in the TGLMM score used
 #'   for the Jacobian. See [fit_tglmm()].
-#' @param BOX_SD Range of the random-effect standard deviations kept by the IB updates; with
-#'   `WORKPAR = "PinheiroBates"`, range of the diagonal of the Cholesky factor.
-#' @param BOX_COR Bound on the absolute partial correlations kept by the IB updates; with
-#'   `WORKPAR = "PinheiroBates"`, the off-diagonal Cholesky entries are bounded by `BOX_SD[2]`.
-#' @param BOX_MU Bound on the absolute mean logits kept by the IB updates.
-#' @param BOUNDARY What the IB does when an update leaves the box: `"stop"` (default) stops and
-#'   returns the last iterate before the contact; `"project"` projects it back and continues.
+#' @param BOX_SD Range of the random-effect standard deviations; an IB update leaving it stops
+#'   the IB. With `WORKPAR = "PinheiroBates"`, range of the diagonal of the Cholesky factor.
+#' @param BOX_COR Bound on the absolute partial correlations; an IB update leaving it stops the
+#'   IB. With `WORKPAR = "PinheiroBates"`, the off-diagonal Cholesky entries are bounded by
+#'   `BOX_SD[2]`.
+#' @param BOX_MU Bound on the absolute mean logits; an IB update leaving it stops the IB.
 #'
 #' @return An object of class `accmeta_ib_control` to be passed to [fit_ib()] via `CONTROL` argumnet.
 #'
@@ -286,37 +271,24 @@ joe2theta <- function(JOEPAR) {
 set_ib_control <- function(
   H = 100,
   MAX_ITER = NULL,
-  TOL = NULL,
   STEP = 1,
   PATIENCE = 30L,
-  TERMINATION = c("residual", "confidence", "hotelling", "max_iter"),
+  TERMINATION = c("mahalanobis", "max_iter"),
   PRECISION = 1,
-  BOOST = FALSE,
-  BOOST_FACTOR = 2,
-  MAX_H = 500,
   NCORES = 1L,
   VCOV_H = 1000,
   VCOV_N_NODES = 7L,
   VCOV_N_ITER = 10L,
   BOX_SD = c(0.1, 10),
   BOX_COR = 0.99,
-  BOX_MU = 20,
-  BOUNDARY = c("stop", "project")
+  BOX_MU = 20
 ) {
   TERMINATION <- match.arg(TERMINATION)
-  BOUNDARY <- match.arg(BOUNDARY)
-  if (is.null(TOL)) {
-    TOL <- if (TERMINATION == "hotelling") 0.5 else 0.05
-  }
   stopifnot(
     is.numeric(H),
     length(H) == 1,
     H > 9,
     is.null(MAX_ITER) || (is.numeric(MAX_ITER) && length(MAX_ITER) == 1 && MAX_ITER >= 1),
-    is.numeric(TOL),
-    length(TOL) == 1,
-    TOL > 0,
-    TOL < 1,
     is.numeric(STEP),
     length(STEP) == 1,
     STEP > 0,
@@ -327,14 +299,6 @@ set_ib_control <- function(
     is.numeric(PRECISION),
     length(PRECISION) == 1,
     PRECISION > 0,
-    isTRUE(BOOST) || isFALSE(BOOST),
-    !BOOST || TERMINATION == "confidence",
-    is.numeric(BOOST_FACTOR),
-    length(BOOST_FACTOR) == 1,
-    BOOST_FACTOR > 1,
-    is.numeric(MAX_H),
-    length(MAX_H) == 1,
-    !BOOST || MAX_H >= H,
     is.numeric(NCORES),
     length(NCORES) == 1,
     NCORES >= 1,
@@ -359,41 +323,20 @@ set_ib_control <- function(
     length(BOX_MU) == 1,
     BOX_MU > 0
   )
-  h_top <- if (BOOST) MAX_H else H
-  if (
-    TERMINATION == "confidence" &&
-      (h_top - 1) * PRECISION <= ib_crit(h_top, TOL)
-  ) {
-    warning(
-      "the confidence test cannot pass with H = ",
-      h_top,
-      " and PRECISION = ",
-      PRECISION,
-      " ((H - 1) * PRECISION must exceed ",
-      signif(ib_crit(h_top, TOL), 3),
-      ").",
-      call. = FALSE
-    )
-  }
   out <- list(
     H = H,
     MAX_ITER = MAX_ITER,
-    TOL = TOL,
     STEP = STEP,
     PATIENCE = PATIENCE,
     TERMINATION = TERMINATION,
     PRECISION = PRECISION,
-    BOOST = BOOST,
-    BOOST_FACTOR = BOOST_FACTOR,
-    MAX_H = MAX_H,
     NCORES = NCORES,
     VCOV_H = VCOV_H,
     VCOV_N_NODES = VCOV_N_NODES,
     VCOV_N_ITER = VCOV_N_ITER,
     BOX_SD = BOX_SD,
     BOX_COR = BOX_COR,
-    BOX_MU = BOX_MU,
-    BOUNDARY = BOUNDARY
+    BOX_MU = BOX_MU
   )
   class(out) <- "accmeta_ib_control"
   return(out)

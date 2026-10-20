@@ -9,9 +9,7 @@
 #'   or `"Joe"` (default) based on unconstrained partial correlations. Also
 #'   passed to the auxiliary [fit_tlmm()] fits.
 #' @param SEEDS Integer vector of length `H` seeding the simulated datasets. If
-#'   `NULL`, drawn once and then held fixed. With `BOOST`, the seeds for up to
-#'   `MAX_H` datasets are appended once, before any fit, so serial and parallel
-#'   runs agree; the returned `SEEDS` are the ones used.
+#'   `NULL`, drawn once and then held fixed, so serial and parallel runs agree.
 #'   When `NULL`, the seeds are drawn from the caller's RNG, which is the only
 #'   change `fit_ib()` makes to the caller's RNG state.
 #' @param VCOV If `TRUE`, also computes the Jacobian at the estimate, stored as `JACOBIAN`, which
@@ -19,12 +17,12 @@
 #'   `VCOV_*` entries of [set_ib_control()]. It can be added later with
 #'   [update()][update.accmeta_ib].
 #'
-#' @return An `accmeta_ib` object. `STOP` says why the iteration ended: `"tol"`
+#' @return An `accmeta_ib` object. `STOP` says why the iteration ended: `"converged"`
 #'   (the convergence test passed), `"stall"` (no improvement for `PATIENCE` iterations),
-#'   `"boundary"` (first contact with the box when `BOUNDARY = "stop"`, in which case `THETA` is
-#'   the last iterate before the contact) or `"maxit"`, in which case `THETA` is the last iterate. Each update is projected onto the box of [set_ib_control()]; `ACTIVE` flags, by
-#'   iteration, the working coordinates moved by the projection, and `RATIO` is the ratio of
-#'   successive projected steps, an empirical contraction rate.
+#'   `"boundary"` (the next update would leave the box of [set_ib_control()], in which case
+#'   `THETA` is the last iterate inside it) or `"maxit"`, in which case `THETA` is the last
+#'   iterate. The TLMM start is clamped into the box. `RATIO` is the ratio of successive steps,
+#'   an empirical contraction rate.
 #'
 #' @seealso [fit_tlmm()] for the auxiliary estimator, [set_ib_control()] for the
 #'   control settings, and [set_prior()] for the prior specification.
@@ -65,13 +63,6 @@ fit_ib <- function(
     SEEDS <- sample.int(.Machine$integer.max, CONTROL$H)
   }
 
-  if (CONTROL$BOOST) {
-    SEEDS <- c(
-      SEEDS,
-      sample.int(.Machine$integer.max, CONTROL$MAX_H - CONTROL$H)
-    )
-  }
-
   # setup parallal cluster via mirai package
   use_parallel <- CONTROL$NCORES > 1L
   if (use_parallel) {
@@ -101,20 +92,18 @@ fit_ib <- function(
   pi_hat <- fit_tlmm(DATA, PRIOR = PRIOR, WORKPAR = WORKPAR)$THETA
   pi_hat_work <- ib_to_work(pi_hat, WORKPAR)
   box <- ib_box(WORKPAR, CONTROL)
-  theta <- ib_from_work(ib_project(pi_hat_work, box, WORKPAR)$WORK, WORKPAR)
+  theta <- ib_from_work(pmin(pmax(pi_hat_work, box$L), box$U), WORKPAR)
 
   # initialise path tracking
   path <- matrix(NA, CONTROL$MAX_ITER + 1, n_params)
   path[1, ] <- theta
   fail <- integer(CONTROL$MAX_ITER)
   degen <- numeric(CONTROL$MAX_ITER)
-  active_path <- matrix(FALSE, CONTROL$MAX_ITER, n_params)
   ratio <- rep(NA, CONTROL$MAX_ITER)
   gap_path <- matrix(NA, CONTROL$MAX_ITER, n_params)
   se_path <- matrix(NA, CONTROL$MAX_ITER, n_params)
   progress <- rep(NA, CONTROL$MAX_ITER)
   threshold_path <- rep(NA, CONTROL$MAX_ITER)
-  h_path <- rep(NA, CONTROL$MAX_ITER)
 
   # auxiliary quantities
   best_theta <- theta
@@ -125,32 +114,24 @@ fit_ib <- function(
   stop_rule <- "maxit"
   filled <- 1
 
-  gap_summary <- NULL
-
-  # sample size boosting (confidence termination), as in ergm
-  h <- CONTROL$H
-  res_last <- NULL
   step_last <- NULL
-  not_improved <- rep(FALSE, 4)
 
   # root finding loop
   for (iter in seq_len(CONTROL$MAX_ITER)) {
-    if (is.null(gap_summary)) {
-      # compute estimator correction
-      gap_summary <- ib_gap(
-        THETA = theta,
-        SEEDS = SEEDS,
-        H = h,
-        N_STUDIES = DATA$n_studies,
-        N_I = n_i,
-        CC = DATA$CC,
-        PRIOR = PRIOR,
-        USE_PARALLEL = use_parallel,
-        PI_HAT_WORK = pi_hat_work,
-        WORKPAR = WORKPAR,
-        MIN_EIG = 1e-3
-      )
-    }
+    # compute estimator correction
+    gap_summary <- ib_gap(
+      THETA = theta,
+      SEEDS = SEEDS,
+      H = CONTROL$H,
+      N_STUDIES = DATA$n_studies,
+      N_I = n_i,
+      CC = DATA$CC,
+      PRIOR = PRIOR,
+      USE_PARALLEL = use_parallel,
+      PI_HAT_WORK = pi_hat_work,
+      WORKPAR = WORKPAR,
+      MIN_EIG = 1e-3
+    )
     if (is.null(gap_summary)) {
       stop("all simulated TLMM fits failed at iteration ", iter, call. = FALSE)
     }
@@ -158,7 +139,6 @@ fit_ib <- function(
     h_ok <- gap_summary$H_OK
 
     # track gap-related quantities
-    h_path[iter] <- h
     gap_path[iter, ] <- gap_summary$GAP
     se_path[iter, ] <- gap_summary$SE
     fail[iter] <- gap_summary$FAIL
@@ -170,11 +150,11 @@ fit_ib <- function(
         "only ",
         h_ok,
         " of ",
-        h,
+        CONTROL$H,
         " simulated fits ",
         "succeeded at iteration ",
         iter,
-        "; the Hotelling test needs more ",
+        "; the Mahalanobis test needs more ",
         "than ",
         n_params,
         ".",
@@ -182,44 +162,24 @@ fit_ib <- function(
       )
     }
 
-    # projected update and residual
-    theta_work <- ib_to_work(theta, WORKPAR)
-    proj <- ib_project(theta_work + CONTROL$STEP * gap_summary$GAP, box, WORKPAR)
-    step_k <- proj$WORK - theta_work
-    res <- step_k / CONTROL$STEP
-    active_path[iter, ] <- proj$ACTIVE
+    # update and residual
+    res <- gap_summary$GAP
+    step_k <- CONTROL$STEP * res
     if (!is.null(step_last)) {
       ratio[iter] <- sqrt(sum(step_k^2)) / sqrt(sum(step_last^2))
     }
     step_last <- step_k
 
     # add small diagonal constant for stability
-    live <- diag(gap_summary$V) > 1e-10 * max(diag(gap_summary$V)) &
-      !(proj$ACTIVE & abs(res) < 1e-8)
+    live <- diag(gap_summary$V) > 1e-10 * max(diag(gap_summary$V))
     vcov_reg <- gap_summary$V[live, live, drop = FALSE] +
       diag(1e-8 * pmax(diag(gap_summary$V)[live], 1e-12), sum(live))
 
-    # compute hotelling t2 for convergence test
+    # mahalanobis distance of the residual for the convergence test
     t2 <- drop(crossprod(res[live], solve(vcov_reg, res[live])))
-
-    # threshold on t2. Inspired by {ergm} stopping criteria for MCMLE
-    crit <- ib_crit(h_ok, CONTROL$TOL, sum(live))
-    threshold <- switch(
-      CONTROL$TERMINATION,
-      hotelling = crit,
-      confidence = (h_ok - 1) *
-        max(sqrt(CONTROL$PRECISION) - sqrt(crit / (h_ok - 1)), 0)^2,
-      residual = (h_ok - 1) * CONTROL$PRECISION / h_ok,
-      max_iter = NA
-    )
+    threshold <- if (budget_only) NA else (h_ok - 1) * CONTROL$PRECISION / h_ok
 
     r2 <- t2 / (h_ok - 1)
-    if (!is.null(res_last)) {
-      r2_last <- drop(crossprod(res_last[live], solve(vcov_reg, res_last[live]))) /
-        (h_ok - 1)
-      not_improved <- c(not_improved[-1], r2 >= r2_last)
-    }
-    res_last <- res
 
     # track t2-related quantities
     progress[iter] <- t2
@@ -231,55 +191,28 @@ fit_ib <- function(
       best_iter <- iter
     }
 
-    # update estimates
-    gap_summary <- NULL
-    theta <- ib_from_work(proj$WORK, WORKPAR)
-    path[iter + 1, ] <- theta
-    filled <- iter + 1L
-
     # stop by convergence test
     if (!budget_only && t2 < threshold) {
-      best_theta <- path[iter, ]
+      best_theta <- theta
       best_t2 <- t2
       converged <- TRUE
-      stop_rule <- "tol"
+      stop_rule <- "converged"
       break
     }
 
-    # stop at the first contact with the box
-    if (!budget_only && CONTROL$BOUNDARY == "stop" && any(proj$ACTIVE)) {
-      best_theta <- path[iter, ]
+    # stop before an update leaving the box
+    work <- ib_to_work(theta, WORKPAR) + step_k
+    if (any(work < box$L | work > box$U)) {
+      best_theta <- theta
       best_t2 <- t2
       stop_rule <- "boundary"
       break
     }
 
-    # increase H by BOOST_FACTOR when:
-    # 1) T2 inside tolerance region but its confidence region is not;
-    # 2) when updates stall with T2 outside the tolerance region
-    if (CONTROL$BOOST && h < CONTROL$MAX_H) {
-      inside <- r2 < CONTROL$PRECISION
-      boost <- if (inside) {
-        min(
-          crit /
-            ((h_ok - 1) * (sqrt(CONTROL$PRECISION) - sqrt(r2))^2),
-          CONTROL$BOOST_FACTOR
-        )
-      } else if (sum(not_improved) > 1) {
-        not_improved[] <- FALSE
-        CONTROL$BOOST_FACTOR
-      } else {
-        1
-      }
-      if (boost > 1) {
-        h_new <- min(ceiling(h * boost), CONTROL$MAX_H)
-        h <- h_new
-        gap_summary <- NULL
-        if (inside) {
-          best_iter <- iter
-        }
-      }
-    }
+    # update estimates
+    theta <- ib_from_work(work, WORKPAR)
+    path[iter + 1, ] <- theta
+    filled <- iter + 1L
 
     # stop by patience on stall updateds
     if (!budget_only && iter - best_iter >= CONTROL$PATIENCE) {
@@ -312,12 +245,10 @@ fit_ib <- function(
     PATH = path[seq_len(filled), , drop = FALSE],
     FAIL = fail[seq_len(iter)],
     DEGEN = degen[seq_len(iter)],
-    ACTIVE = active_path[seq_len(iter), , drop = FALSE],
     RATIO = ratio[seq_len(iter)],
     GAP = gap_path[seq_len(iter), , drop = FALSE],
     SE = se_path[seq_len(iter), , drop = FALSE],
-    H = h_path[seq_len(iter)],
-    SEEDS = SEEDS[seq_len(h)],
+    SEEDS = SEEDS,
     PRIOR = PRIOR,
     CONTROL = CONTROL,
     WORKPAR = WORKPAR,
@@ -347,14 +278,6 @@ ib_start_daemons <- function(NCORES, N) {
   mirai::daemons(min(NCORES, N))
 }
 
-# critical value of the Hotelling t2 at level TOL with H draws
-ib_crit <- function(H, TOL, N_PARAMS = 9) {
-  N_PARAMS *
-    (H - 1) /
-    (H - N_PARAMS) *
-    stats::qf(1 - TOL, N_PARAMS, H - N_PARAMS)
-}
-
 ib_box <- function(WORKPAR, CONTROL) {
   mu <- rep(CONTROL$BOX_MU, 3)
   sd <- log(CONTROL$BOX_SD)
@@ -367,11 +290,6 @@ ib_box <- function(WORKPAR, CONTROL) {
     L = c(-mu, sd[1], -off, sd[1], -off, -off, sd[1]),
     U = c(mu, sd[2], off, sd[2], off, off, sd[2])
   )
-}
-
-ib_project <- function(WORK, BOX, WORKPAR) {
-  out <- pmin(pmax(WORK, BOX$L), BOX$U)
-  list(WORK = out, ACTIVE = out != WORK)
 }
 
 ib_to_work <- function(THETA, WORKPAR) {

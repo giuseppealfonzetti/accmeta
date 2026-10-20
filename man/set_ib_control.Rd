@@ -7,22 +7,17 @@
 set_ib_control(
   H = 100,
   MAX_ITER = NULL,
-  TOL = NULL,
   STEP = 1,
   PATIENCE = 30L,
-  TERMINATION = c("residual", "confidence", "hotelling", "max_iter"),
+  TERMINATION = c("mahalanobis", "max_iter"),
   PRECISION = 1,
-  BOOST = FALSE,
-  BOOST_FACTOR = 2,
-  MAX_H = 500,
   NCORES = 1L,
   VCOV_H = 1000,
   VCOV_N_NODES = 7L,
   VCOV_N_ITER = 10L,
   BOX_SD = c(0.1, 10),
   BOX_COR = 0.99,
-  BOX_MU = 20,
-  BOUNDARY = c("stop", "project")
+  BOX_MU = 20
 )
 }
 \arguments{
@@ -30,11 +25,6 @@ set_ib_control(
 
 \item{MAX_ITER}{Maximum number of iterations. If \code{NULL}, 100, or 3 with a warning when the data
 have fewer than 15 studies, where further iterations tend to overcorrect.}
-
-\item{TOL}{Significance level \eqn{\alpha \in (0, 1)} of the \code{"hotelling"}
-and \code{"confidence"} tests (see \code{TERMINATION}). If \code{NULL}, \code{0.5} for
-\code{"hotelling"} and \code{0.05} otherwise. Ignored for \code{"residual"} and
-\code{"max_iter"}.}
 
 \item{STEP}{Damping factor \eqn{\gamma \in (0, 1]}.}
 
@@ -44,28 +34,15 @@ best convergence statistic (returning the best iterate seen). Ignored for
 
 \item{TERMINATION}{Stopping rule, based on the IB gap \eqn{\bar g} and the
 sample covariance \eqn{S} of the \eqn{H} simulated estimates:
-\code{"residual"} (default) stops when \eqn{\bar g^\top S^{-1} \bar g <}
+\code{"mahalanobis"} (default) stops when \eqn{\bar g^\top S^{-1} \bar g <}
 \code{PRECISION}\eqn{/H}, i.e. when the next step is within \code{sqrt(PRECISION)}
 Monte Carlo standard deviations of the IB estimator;
-\code{"hotelling"} stops when the Hotelling test of \eqn{H_0: E[g] = 0} is
-not rejected;
-\code{"confidence"} stops when the \eqn{1 - \alpha} Hotelling confidence
-ellipsoid of the gap lies inside the tolerance region
-\eqn{\delta^\top \Sigma^{-1} \delta \le} \code{PRECISION}, with \eqn{\Sigma} the
-covariance of a single simulated estimate;
-\code{"max_iter"} runs all \code{MAX_ITER} iterations with no test and returns the
-best iterate seen.}
+\code{"max_iter"} runs all \code{MAX_ITER} iterations with no convergence or stall
+stop and returns the best iterate seen. Either way, an update leaving the
+box stops the IB.}
 
-\item{PRECISION}{Squared tolerance: for \code{"residual"}, in units of the Monte
-Carlo variance \eqn{1/H}; for \code{"confidence"}, the squared equivalence
-margin in squared standard deviations of the estimator.}
-
-\item{BOOST}{If \code{TRUE}, increases \code{H} when the \code{"confidence"} test fails.
-Only for \code{TERMINATION = "confidence"}.}
-
-\item{BOOST_FACTOR}{Maximum multiplicative growth of \code{H} when \code{BOOST = TRUE}.}
-
-\item{MAX_H}{Upper bound on \code{H} when \code{BOOST = TRUE}.}
+\item{PRECISION}{Squared tolerance of \code{"mahalanobis"}, in units of the Monte
+Carlo variance \eqn{1/H}.}
 
 \item{NCORES}{Number of cores to be passed to \code{\link[mirai:daemons]{mirai::daemons()}}. Default \code{1} runs serially.
 Values \verb{> 1} for parallel computations across the H simulated datasets at each iteration.
@@ -84,16 +61,14 @@ more nodes.}
 \item{VCOV_N_ITER}{Number of Newton steps locating the integrand mode in the TGLMM score used
 for the Jacobian. See \code{\link[=fit_tglmm]{fit_tglmm()}}.}
 
-\item{BOX_SD}{Range of the random-effect standard deviations kept by the IB updates; with
-\code{WORKPAR = "PinheiroBates"}, range of the diagonal of the Cholesky factor.}
+\item{BOX_SD}{Range of the random-effect standard deviations; an IB update leaving it stops
+the IB. With \code{WORKPAR = "PinheiroBates"}, range of the diagonal of the Cholesky factor.}
 
-\item{BOX_COR}{Bound on the absolute partial correlations kept by the IB updates; with
-\code{WORKPAR = "PinheiroBates"}, the off-diagonal Cholesky entries are bounded by \code{BOX_SD[2]}.}
+\item{BOX_COR}{Bound on the absolute partial correlations; an IB update leaving it stops the
+IB. With \code{WORKPAR = "PinheiroBates"}, the off-diagonal Cholesky entries are bounded by
+\code{BOX_SD[2]}.}
 
-\item{BOX_MU}{Bound on the absolute mean logits kept by the IB updates.}
-
-\item{BOUNDARY}{What the IB does when an update leaves the box: \code{"stop"} (default) stops and
-returns the last iterate before the contact; \code{"project"} projects it back and continues.}
+\item{BOX_MU}{Bound on the absolute mean logits; an IB update leaving it stops the IB.}
 }
 \value{
 An object of class \code{accmeta_ib_control} to be passed to \code{\link[=fit_ib]{fit_ib()}} via \code{CONTROL} argumnet.

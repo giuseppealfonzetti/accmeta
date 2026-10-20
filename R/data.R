@@ -8,7 +8,7 @@
 #'
 #' @param N_STUDIES Number of studies to generate. A single positive integer.
 #' @param THETA Numeric vector of length 9, or 12 for skew-normal random
-#'   effects. See [theta2list()].
+#'   effects, which need the 'sn' package. See [theta2list()].
 #' @param N_I Numeric vector of length `N_STUDIES` giving the total sample size
 #'   \eqn{n_i} of each study. Entries must be positive integers.
 #'
@@ -39,6 +39,9 @@ sim_data <- function(N_STUDIES, THETA, N_I) {
       chol(par$SIGMA) +
       rep(par$MU, each = N_STUDIES)
   } else {
+    if (!requireNamespace("sn", quietly = TRUE)) {
+      stop("skew-normal random effects need the 'sn' package.", call. = FALSE)
+    }
     dp <- theta2dp(THETA)
     dp <- list(xi = c(0, 0, 0), Omega = dp$Omega, alpha = dp$alpha)
     U <- sn::rmsn(N_STUDIES, dp = dp) +

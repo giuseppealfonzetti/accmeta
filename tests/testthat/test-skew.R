@@ -20,6 +20,7 @@ test_that("theta2list and list2theta round-trip on the natural scale", {
 })
 
 test_that("theta2dp gives the direct parameters of sn", {
+  skip_if_not_installed("sn")
   li <- theta2list(th12)
   dp <- theta2dp(th12)
   ref <- sn::cp2dp(list(mean = li$MU, var.cov = li$SIGMA, gamma1 = s12), "SN")
@@ -34,6 +35,7 @@ test_that("theta2dp gives the direct parameters of sn", {
 })
 
 test_that("THETA is the original parameterisation of sn", {
+  skip_if_not_installed("sn")
   op <- sn::dp2op(theta2dp(th12), "SN")
   expect_equal(unname(op$xi), th12[1:3])
   expect_equal(unname(op$Psi), unname(theta2list(th12[1:9])$SIGMA))
@@ -42,6 +44,7 @@ test_that("THETA is the original parameterisation of sn", {
 
 
 test_that("sim_data draws skew-normal random effects", {
+  skip_if_not_installed("sn")
   set.seed(1)
   e <- suppressMessages(
     set_meta_data(sim_data(5e4, th12, rep(1e8, 5e4)), CC = 0.5)
