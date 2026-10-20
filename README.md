@@ -169,7 +169,7 @@ min(eigen(coef(tglmm)$SIGMA)$values)
 
 With `VCOV = TRUE`, `fit_ib()` also computes the Jacobian at the
 estimate. `NCORES` spreads both the simulated fits of each iteration and
-the Jacobian draws over [mirai](https://mirai.r-lib.org) daemons
+the Jacobian draws for parallel computations
 
 ``` r
 ib <- fit_ib(d_cc, VCOV = TRUE, CONTROL = set_ib_control(NCORES = 4))
