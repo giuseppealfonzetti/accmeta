@@ -103,12 +103,6 @@ ib
 #> 0.939 0.906 0.372
 ```
 
-The IB stops when the Mahalanobis distance of its last step falls below
-`PRECISION / H` Monte Carlo variances (`"converged"`), when it stops
-improving (`"stall"`), when the next update would leave the box
-(`"boundary"`) or after `MAX_ITER` iterations (`"maxit"`). These
-settings, and the box bounds, are set through `set_ib_control()`.
-
 `coef()` extract estimated parameters:
 
 ``` r
@@ -210,8 +204,7 @@ confint(ib, METHOD = "basic")
 #> z_rho23_1    -1.41323684  1.08607792
 ```
 
-Intervals for the means map to the natural scale; specificity is one
-minus the inverse logit of `mu_xi`, so its bounds swap.
+Intervals for the can be mapped onto the natural scale via
 
 ``` r
 ci <- confint(ib, parm = 1:3)
