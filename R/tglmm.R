@@ -19,13 +19,7 @@
 #'
 #' @param WORKPAR Coordinates the optimiser works in for the covariance:
 #'   `"PinheiroBates"` (log-Cholesky, default) or `"Joe"` (log standard
-#'   deviations and Fisher-z partial correlations, see [theta2joe()]). The
-#'   objective is a function of \eqn{\Sigma_3} alone, so the fit is the same
-#'   under any prior with `DEGREES > 4`; under the flat prior the two can stop
-#'   at different points of a boundary fit. `THETA` is returned in the layout of
-#'   [theta2list()] either way, while `OBJ` takes `WORKPAR` coordinates: under
-#'   `"Joe"`, evaluate it at `theta2joe(THETA)`.
-#'
+#'   deviations and Fisher-z partial correlations, see [theta2joe()]).
 #' @return A list with components `THETA`, the fitted parameter vector in the
 #'   layout documented for [theta2list()]; `CONVERGENCE`, the optimiser
 #'   convergence code; `NLL`, the negative log-likelihood at the optimum;

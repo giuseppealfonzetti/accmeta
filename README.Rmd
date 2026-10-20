@@ -19,17 +19,18 @@ knitr::opts_chunk$set(
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)[![R-CMD-check](https://github.com/giuseppealfonzetti/accmeta/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/giuseppealfonzetti/accmeta/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
-Penalised estimation of meta-analysis models for diagnostic accuracy, in terms of sensitivity, specificity and
-prevalence. Three estimators are available: a trivariate linear mixed model
+Penalised estimation of meta-analysis models for diagnostic accuracy, in terms of sensitivity, specificity and prevalence. Three estimators are available: a trivariate linear mixed model
 (TLMM) using a within-study normal approximation, the trivariate
-generalized linear mixed model (TGLMM), and an iterative bootstrap that corrects
-the bias of the TLMM by simulating from the TGLMM.
+generalized linear mixed model (TGLMM), and an iterative bootstrap (IB) that corrects
+the bias of the TLMM by simulating from the TGLMM. IB fits come with a
+covariance matrix and Wald or basic confidence intervals, built from a simulated
+Jacobian of the TGLMM score.
 
 ## Installation
 
 You can install the package via 
 
-```{r}
+```{r, eval = FALSE}
 pak::pkg_install("giuseppealfonzetti/accmeta")
 ```
 
@@ -80,6 +81,11 @@ ib <- fit_ib(d_cc)
 ib
 ```
 
+The IB stops when the Mahalanobis distance of its last step falls below `PRECISION / H`
+Monte Carlo variances (`"converged"`), when it stops improving (`"stall"`), when the next
+update would leave the box (`"boundary"`) or after `MAX_ITER` iterations (`"maxit"`). These
+settings, and the box bounds, are set through `set_ib_control()`.
+
 `coef()` extract estimated parameters:
 
 ```{r coef}
@@ -99,3 +105,33 @@ min(eigen(coef(tglmm)$SIGMA)$values)
 
 ```
 
+## Inference for the IB estimate
+
+With `VCOV = TRUE`, `fit_ib()` also computes the Jacobian at the estimate.  `NCORES` spreads both the
+simulated fits of each iteration and the Jacobian draws over [mirai](https://mirai.r-lib.org)
+daemons
+```{r ib-vcov}
+ib <- fit_ib(d_cc, VCOV = TRUE, CONTROL = set_ib_control(NCORES = 4))
+```
+
+`update(ib, VCOV = TRUE)` adds the Jacobian to an existing fit, using the fit's `CONTROL`.
+`vcov()` and `confint()` work in the working coordinates of the IB, i.e the means, the log
+standard deviations and the Fisher-z partial correlations.
+
+```{r ib-ci}
+sqrt(diag(vcov(ib)))
+confint(ib)
+confint(ib, METHOD = "basic")
+```
+
+Intervals for the means map to the natural scale; specificity is one minus the inverse logit of
+`mu_xi`, so its bounds swap.
+
+```{r ib-natural}
+ci <- confint(ib, parm = 1:3)
+rbind(
+  sensitivity = plogis(ci["mu_eta", ]),
+  specificity = unname(1 - plogis(ci["mu_xi", 2:1])),
+  prevalence = plogis(ci["mu_gamma", ])
+)
+```
