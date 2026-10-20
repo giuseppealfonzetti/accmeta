@@ -7,7 +7,8 @@
 theta2joe(THETA)
 }
 \arguments{
-\item{THETA}{Numeric vector of length 9 (see \code{\link[=theta2list]{theta2list()}}).}
+\item{THETA}{Numeric vector of length 9 or 12 (see \code{\link[=theta2list]{theta2list()}});
+entries 10 to 12 are copied verbatim.}
 }
 \value{
 A numeric vector of length 9:

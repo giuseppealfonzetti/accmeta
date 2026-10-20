@@ -7,7 +7,7 @@
 joe2theta(JOEPAR)
 }
 \arguments{
-\item{JOEPAR}{Numeric vector of length 9 in the layout returned by
+\item{JOEPAR}{Numeric vector of length 9 or 12 in the layout returned by
 \code{\link[=theta2joe]{theta2joe()}}.}
 }
 \value{

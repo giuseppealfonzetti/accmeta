@@ -7,6 +7,11 @@
 #'   means \eqn{(\bar\eta, \bar\xi, \bar\gamma)}. Entries 4 to 9 are the
 #'   log-Cholesky factor of \eqn{\Sigma_3} in row-major lower-triangular order
 #'   \eqn{(log(L_{11}), L_{21}, log(L_{22}), L_{31}, L_{32}, log(L_{33})}).
+#'   Length 12 for skew-normal random effects, in the original parameterisation
+#'   of [sn::dp2op()]: entries 1 to 3 are then the location, 4 to 9 the
+#'   log-Cholesky factor of \eqn{\Psi} and 10 to 12 the slant \eqn{\lambda};
+#'   the list then reports the mean, the covariance and `SKEW`, the marginal
+#'   skewness of each component.
 #'
 #' @return A list with two components: `MU`, the length-3 mean vector, and
 #'   `SIGMA`, the 3x3 positive-definite covariance matrix. Both are named after
@@ -19,7 +24,7 @@
 #'
 #' @export
 theta2list <- function(THETA) {
-  stopifnot(is.numeric(THETA), length(THETA) == 9)
+  stopifnot(is.numeric(THETA), length(THETA) %in% c(9, 12))
   nm <- c("eta", "xi", "gamma")
   L <- matrix(0, 3, 3)
   L[lower.tri(L, diag = TRUE)] <- THETA[c(4, 5, 7, 6, 8, 9)]
@@ -28,7 +33,17 @@ theta2list <- function(THETA) {
   names(mu) <- nm
   sigma <- tcrossprod(L)
   dimnames(sigma) <- list(nm, nm)
-  list(MU = mu, SIGMA = sigma)
+  if (length(THETA) == 9) {
+    return(list(MU = mu, SIGMA = sigma))
+  }
+  delta <- THETA[10:12] * sqrt(diag(sigma))
+  vc <- sigma + (1 - 2 / pi) * tcrossprod(delta)
+  m <- sqrt(2 / pi) * delta / sqrt(diag(vc))
+  list(
+    MU = mu + sqrt(2 / pi) * delta,
+    SIGMA = vc,
+    SKEW = stats::setNames((4 - pi) / 2 * m^3, nm)
+  )
 }
 
 
@@ -38,7 +53,9 @@ theta2list <- function(THETA) {
 #' matrix into the working parameter vector `THETA`.
 #'
 #' @param LIST A list with components `MU`, a numeric vector of length 3, and
-#'   `SIGMA`, a 3x3 symmetric positive-definite matrix.
+#'   `SIGMA`, a 3x3 symmetric positive-definite matrix. Optionally `SKEW`, the
+#'   length-3 marginal skewness of skew-normal random effects, which must be
+#'   admissible for `SIGMA`.
 #'
 #' @return A numeric vector of length 9, in the layout documented for
 #'   [theta2list()].
@@ -62,12 +79,59 @@ list2theta <- function(LIST) {
     is.numeric(LIST$MU),
     length(LIST$MU) == 3,
     identical(dim(LIST$SIGMA), c(3L, 3L)),
-    isSymmetric(LIST$SIGMA)
+    isSymmetric(LIST$SIGMA),
+    is.null(LIST$SKEW) || (is.numeric(LIST$SKEW) && length(LIST$SKEW) == 3)
   )
-  L <- t(chol(LIST$SIGMA))
-  diag(L) <- log(diag(L))
-  # THETA carries no names
-  unname(c(LIST$MU, L[lower.tri(L, diag = TRUE)][c(1, 2, 4, 3, 5, 6)]))
+  if (is.null(LIST$SKEW)) {
+    L <- t(chol(LIST$SIGMA))
+    diag(L) <- log(diag(L))
+    # THETA carries no names
+    return(unname(c(LIST$MU, L[lower.tri(L, diag = TRUE)][c(1, 2, 4, 3, 5, 6)])))
+  }
+  delta <- skew_delta(LIST$SIGMA, LIST$SKEW)
+  t <- skew_t(LIST$SIGMA, LIST$SKEW)
+  if (!is.finite(t) || t >= 1) {
+    stop("skewness not admissible for this covariance", call. = FALSE)
+  }
+  psi <- LIST$SIGMA - (1 - 2 / pi) * tcrossprod(delta)
+  c(
+    list2theta(list(MU = LIST$MU - sqrt(2 / pi) * delta, SIGMA = (psi + t(psi)) / 2)),
+    unname(delta / sqrt(diag(psi)))
+  )
+}
+
+skew_delta <- function(SIGMA, SKEW) {
+  sign(SKEW) * sqrt(diag(SIGMA)) * sqrt(pi / 2) * (2 * abs(SKEW) / (4 - pi))^(1 / 3)
+}
+
+skew_t <- function(SIGMA, SKEW) {
+  delta <- skew_delta(SIGMA, SKEW)
+  (1 - 2 / pi) * sum(delta * solve(SIGMA, delta))
+}
+
+#' Direct parameters of skew-normal random effects
+#'
+#' @param THETA Numeric vector of length 9 or 12, in the layout documented for
+#'   [theta2list()].
+#'
+#' @return A list with `xi`, `Omega` and `alpha`, the direct parameters of
+#'   [sn::dmsn()]; `alpha` is zero for length 9.
+#'
+#' @export
+theta2dp <- function(THETA) {
+  li <- theta2list(THETA[1:9])
+  if (length(THETA) == 9) {
+    return(list(xi = li$MU, Omega = li$SIGMA, alpha = 0 * li$MU))
+  }
+  delta <- THETA[10:12] * sqrt(diag(li$SIGMA))
+  om <- li$SIGMA + tcrossprod(delta)
+  oid <- solve(om, delta)
+  list(
+    xi = li$MU,
+    Omega = om,
+    alpha = sqrt(diag(om)) * oid /
+      sqrt(max(1 - sum(delta * oid), .Machine$double.eps))
+  )
 }
 
 #' Set the prior on the random-effects covariance
@@ -107,7 +171,8 @@ set_prior <- function(DEGREES = 5, SCALE = Inf) {
 
 #' Map the working vector to Joe's unconstrained parameters
 #'
-#' @param THETA Numeric vector of length 9 (see [theta2list()]).
+#' @param THETA Numeric vector of length 9 or 12 (see [theta2list()]);
+#'   entries 10 to 12 are copied verbatim.
 #'
 #' @return A numeric vector of length 9:
 #'   entries 1 to 3 the means (copied verbatim), 4 to 6 the log marginal SDs
@@ -120,18 +185,18 @@ set_prior <- function(DEGREES = 5, SCALE = Inf) {
 #' @seealso [joe2theta()] for the inverse map.
 #' @export
 theta2joe <- function(THETA) {
-  li <- theta2list(THETA)
+  li <- theta2list(THETA[1:9])
   s <- sqrt(diag(li$SIGMA))
   cormat <- li$SIGMA / tcrossprod(s)
   r <- pmin(pmax(c(cormat[1, 2], cormat[1, 3]), -1 + 1e-10), 1 - 1e-10)
   r23g1 <- (cormat[2, 3] - r[1] * r[2]) / sqrt((1 - r[1]^2) * (1 - r[2]^2))
   r <- pmin(pmax(c(r, r23g1), -1 + 1e-10), 1 - 1e-10)
-  unname(c(li$MU, log(s), atanh(r)))
+  unname(c(li$MU, log(s), atanh(r), THETA[-(1:9)]))
 }
 
 #' Map Joe's unconstrained parameters back to the working vector
 #'
-#' @param JOEPAR Numeric vector of length 9 in the layout returned by
+#' @param JOEPAR Numeric vector of length 9 or 12 in the layout returned by
 #'   [theta2joe()].
 #'
 #' @return A numeric vector of length 9 (the working vector `THETA`).
@@ -139,7 +204,7 @@ theta2joe <- function(THETA) {
 #' @seealso [theta2joe()] for the inverse map.
 #' @export
 joe2theta <- function(JOEPAR) {
-  stopifnot(is.numeric(JOEPAR), length(JOEPAR) == 9)
+  stopifnot(is.numeric(JOEPAR), length(JOEPAR) %in% c(9, 12))
   s <- exp(JOEPAR[4:6])
   z <- tanh(JOEPAR[7:9])
   r12 <- z[1]
@@ -147,7 +212,10 @@ joe2theta <- function(JOEPAR) {
   r23g1 <- z[3]
   r23 <- r12 * r13 + r23g1 * sqrt((1 - r12^2) * (1 - r13^2))
   cormat <- matrix(c(1, r12, r13, r12, 1, r23, r13, r23, 1), 3, 3)
-  list2theta(list(MU = JOEPAR[1:3], SIGMA = cormat * tcrossprod(s)))
+  c(
+    list2theta(list(MU = JOEPAR[1:3], SIGMA = cormat * tcrossprod(s))),
+    JOEPAR[-(1:9)]
+  )
 }
 
 
@@ -156,7 +224,8 @@ joe2theta <- function(JOEPAR) {
 #' Build the `CONTROL` object passed to [fit_ib()].
 #'
 #' @param H Number of datasets simulated per iteration.
-#' @param MAX_ITER Maximum number of iterations.
+#' @param MAX_ITER Maximum number of iterations. If `NULL`, 100, or 3 with a warning when the data
+#'   have fewer than 15 studies, where further iterations tend to overcorrect.
 #' @param TOL Significance level \eqn{\alpha \in (0, 1)} of the `"hotelling"`
 #'   and `"confidence"` tests (see `TERMINATION`). If `NULL`, `0.5` for
 #'   `"hotelling"` and `0.05` otherwise. Ignored for `"residual"` and
@@ -198,6 +267,13 @@ joe2theta <- function(JOEPAR) {
 #'   more nodes.
 #' @param VCOV_N_ITER Number of Newton steps locating the integrand mode in the TGLMM score used
 #'   for the Jacobian. See [fit_tglmm()].
+#' @param BOX_SD Range of the random-effect standard deviations kept by the IB updates; with
+#'   `WORKPAR = "PinheiroBates"`, range of the diagonal of the Cholesky factor.
+#' @param BOX_COR Bound on the absolute partial correlations kept by the IB updates; with
+#'   `WORKPAR = "PinheiroBates"`, the off-diagonal Cholesky entries are bounded by `BOX_SD[2]`.
+#' @param BOX_MU Bound on the absolute mean logits kept by the IB updates.
+#' @param BOUNDARY What the IB does when an update leaves the box: `"stop"` (default) stops and
+#'   returns the last iterate before the contact; `"project"` projects it back and continues.
 #'
 #' @return An object of class `accmeta_ib_control` to be passed to [fit_ib()] via `CONTROL` argumnet.
 #'
@@ -209,10 +285,10 @@ joe2theta <- function(JOEPAR) {
 #' @export
 set_ib_control <- function(
   H = 100,
-  MAX_ITER = 100,
+  MAX_ITER = NULL,
   TOL = NULL,
   STEP = 1,
-  PATIENCE = 5L,
+  PATIENCE = 30L,
   TERMINATION = c("residual", "confidence", "hotelling", "max_iter"),
   PRECISION = 1,
   BOOST = FALSE,
@@ -221,9 +297,14 @@ set_ib_control <- function(
   NCORES = 1L,
   VCOV_H = 1000,
   VCOV_N_NODES = 7L,
-  VCOV_N_ITER = 10L
+  VCOV_N_ITER = 10L,
+  BOX_SD = c(0.1, 10),
+  BOX_COR = 0.99,
+  BOX_MU = 20,
+  BOUNDARY = c("stop", "project")
 ) {
   TERMINATION <- match.arg(TERMINATION)
+  BOUNDARY <- match.arg(BOUNDARY)
   if (is.null(TOL)) {
     TOL <- if (TERMINATION == "hotelling") 0.5 else 0.05
   }
@@ -231,9 +312,7 @@ set_ib_control <- function(
     is.numeric(H),
     length(H) == 1,
     H > 9,
-    is.numeric(MAX_ITER),
-    length(MAX_ITER) == 1,
-    MAX_ITER >= 1,
+    is.null(MAX_ITER) || (is.numeric(MAX_ITER) && length(MAX_ITER) == 1 && MAX_ITER >= 1),
     is.numeric(TOL),
     length(TOL) == 1,
     TOL > 0,
@@ -267,7 +346,18 @@ set_ib_control <- function(
     VCOV_N_NODES >= 2,
     is.numeric(VCOV_N_ITER),
     length(VCOV_N_ITER) == 1,
-    VCOV_N_ITER >= 1
+    VCOV_N_ITER >= 1,
+    is.numeric(BOX_SD),
+    length(BOX_SD) == 2,
+    BOX_SD[1] > 0,
+    BOX_SD[1] < BOX_SD[2],
+    is.numeric(BOX_COR),
+    length(BOX_COR) == 1,
+    BOX_COR > 0,
+    BOX_COR < 1,
+    is.numeric(BOX_MU),
+    length(BOX_MU) == 1,
+    BOX_MU > 0
   )
   h_top <- if (BOOST) MAX_H else H
   if (
@@ -299,7 +389,11 @@ set_ib_control <- function(
     NCORES = NCORES,
     VCOV_H = VCOV_H,
     VCOV_N_NODES = VCOV_N_NODES,
-    VCOV_N_ITER = VCOV_N_ITER
+    VCOV_N_ITER = VCOV_N_ITER,
+    BOX_SD = BOX_SD,
+    BOX_COR = BOX_COR,
+    BOX_MU = BOX_MU,
+    BOUNDARY = BOUNDARY
   )
   class(out) <- "accmeta_ib_control"
   return(out)

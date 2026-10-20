@@ -40,8 +40,11 @@ change \code{fit_ib()} makes to the caller's RNG state.}
 }
 \value{
 An \code{accmeta_ib} object. \code{STOP} says why the iteration ended: \code{"tol"}
-(the convergence test passed), \code{"boundary"} (no valid generative model available for next iteration),
-\code{"stall"} (no improvement for \code{PATIENCE} iterations) or \code{"maxit"}.
+(the convergence test passed), \code{"stall"} (no improvement for \code{PATIENCE} iterations),
+\code{"boundary"} (first contact with the box when \code{BOUNDARY = "stop"}, in which case \code{THETA} is
+the last iterate before the contact) or \code{"maxit"}, in which case \code{THETA} is the last iterate. Each update is projected onto the box of \code{\link[=set_ib_control]{set_ib_control()}}; \code{ACTIVE} flags, by
+iteration, the working coordinates moved by the projection, and \code{RATIO} is the ratio of
+successive projected steps, an empirical contraction rate.
 }
 \description{
 Iterative bootstrap bias correction for TLMM
