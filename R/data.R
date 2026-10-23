@@ -11,6 +11,10 @@
 #'   effects, which need the 'sn' package. See [theta2list()].
 #' @param N_I Numeric vector of length `N_STUDIES` giving the total sample size
 #'   \eqn{n_i} of each study. Entries must be positive integers.
+#' @param DF Degrees of freedom \eqn{\nu > 2} of Student t random effects, as in
+#'   Guolo (2023), scaled to have covariance `SIGMA`, i.e. scale matrix
+#'   \eqn{(\nu - 2)\Sigma_3/\nu}. `Inf` gives normal random effects. Only for
+#'   `THETA` of length 9.
 #'
 #' @return An integer matrix with `N_STUDIES` rows and columns `n11`, `n10`,
 #'   `n01`, `n00`, the misclassification counts of each study. Each row sums to
@@ -23,7 +27,7 @@
 #' sim_data(5, th, sample(40:200, 5, TRUE))
 #'
 #' @export
-sim_data <- function(N_STUDIES, THETA, N_I) {
+sim_data <- function(N_STUDIES, THETA, N_I, DF = Inf) {
   stopifnot(
     is.numeric(N_STUDIES),
     length(N_STUDIES) == 1,
@@ -31,13 +35,21 @@ sim_data <- function(N_STUDIES, THETA, N_I) {
     is.numeric(N_I),
     length(N_I) == N_STUDIES,
     all(N_I > 0),
-    all(N_I == round(N_I))
+    all(N_I == round(N_I)),
+    is.numeric(DF),
+    length(DF) == 1,
+    DF > 2
   )
+  if (is.finite(DF) && length(THETA) == 12) {
+    stop("t random effects need a length-9 THETA.", call. = FALSE)
+  }
   par <- theta2list(THETA)
   if (length(THETA) == 9) {
-    U <- matrix(stats::rnorm(3 * N_STUDIES), N_STUDIES, 3) %*%
-      chol(par$SIGMA) +
-      rep(par$MU, each = N_STUDIES)
+    U <- matrix(stats::rnorm(3 * N_STUDIES), N_STUDIES, 3) %*% chol(par$SIGMA)
+    if (is.finite(DF)) {
+      U <- U * sqrt((DF - 2) / stats::rchisq(N_STUDIES, DF))
+    }
+    U <- U + rep(par$MU, each = N_STUDIES)
   } else {
     if (!requireNamespace("sn", quietly = TRUE)) {
       stop("skew-normal random effects need the 'sn' package.", call. = FALSE)

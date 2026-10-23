@@ -165,6 +165,25 @@ test_that("a fixed seed gives data continuous in THETA", {
   expect_lte(sum(abs(a - b)), 2)
 })
 
+test_that("sim_data draws t random effects with covariance SIGMA", {
+  set.seed(1)
+  e <- suppressMessages(
+    set_meta_data(sim_data(5e4, th, rep(1e8, 5e4), DF = 10), CC = 0.5)
+  )$est
+  sigma <- theta2list(th)$SIGMA
+  z <- sweep(e, 2, colMeans(e)) / rep(sqrt(diag(sigma)), each = 5e4)
+  expect_equal(unname(colMeans(e)), th[1:3], tolerance = 1e-2)
+  expect_equal(unname(cov(e)), unname(sigma), tolerance = 2e-2)
+  expect_equal(mean(abs(z) > 3), 2 * pt(-3 / sqrt(0.8), 10), tolerance = 0.2)
+
+  set.seed(1)
+  a <- sim_data(5, th, rep(100, 5))
+  set.seed(1)
+  expect_identical(sim_data(5, th, rep(100, 5), DF = Inf), a)
+  expect_error(sim_data(5, th, rep(100, 5), DF = 2), "DF > 2")
+  expect_error(sim_data(5, c(th, 0, 0, 0), rep(100, 5), DF = 5), "length-9")
+})
+
 test_that("theta2list names its components", {
   p <- theta2list(th)
   nm <- c("eta", "xi", "gamma")

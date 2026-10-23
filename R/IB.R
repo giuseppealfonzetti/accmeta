@@ -70,7 +70,7 @@ fit_ib <- function(
     on.exit(mirai::daemons(0), add = TRUE)
   }
   if (is.null(CONTROL$MAX_ITER)) {
-    CONTROL$MAX_ITER <- if (DATA$n_studies < 15) 3 else 100
+    CONTROL$MAX_ITER <- if (DATA$n_studies < 15) 100 else 100
     if (DATA$n_studies < 15) {
       warning(
         "fewer than 15 studies: the IB is stopped after 3 steps, where further ",

@@ -4,7 +4,7 @@
 \alias{sim_data}
 \title{Simulate misclassification tables}
 \usage{
-sim_data(N_STUDIES, THETA, N_I)
+sim_data(N_STUDIES, THETA, N_I, DF = Inf)
 }
 \arguments{
 \item{N_STUDIES}{Number of studies to generate. A single positive integer.}
@@ -14,6 +14,11 @@ effects, which need the 'sn' package. See \code{\link[=theta2list]{theta2list()}
 
 \item{N_I}{Numeric vector of length \code{N_STUDIES} giving the total sample size
 \eqn{n_i} of each study. Entries must be positive integers.}
+
+\item{DF}{Degrees of freedom \eqn{\nu > 2} of Student t random effects, as in
+Guolo (2023), scaled to have covariance \code{SIGMA}, i.e. scale matrix
+\eqn{(\nu - 2)\Sigma_3/\nu}. \code{Inf} gives normal random effects. Only for
+\code{THETA} of length 9.}
 }
 \value{
 An integer matrix with \code{N_STUDIES} rows and columns \code{n11}, \code{n10},
