@@ -86,7 +86,10 @@ list2theta <- function(LIST) {
     L <- t(chol(LIST$SIGMA))
     diag(L) <- log(diag(L))
     # THETA carries no names
-    return(unname(c(LIST$MU, L[lower.tri(L, diag = TRUE)][c(1, 2, 4, 3, 5, 6)])))
+    return(unname(c(
+      LIST$MU,
+      L[lower.tri(L, diag = TRUE)][c(1, 2, 4, 3, 5, 6)]
+    )))
   }
   delta <- skew_delta(LIST$SIGMA, LIST$SKEW)
   t <- skew_t(LIST$SIGMA, LIST$SKEW)
@@ -95,13 +98,19 @@ list2theta <- function(LIST) {
   }
   psi <- LIST$SIGMA - (1 - 2 / pi) * tcrossprod(delta)
   c(
-    list2theta(list(MU = LIST$MU - sqrt(2 / pi) * delta, SIGMA = (psi + t(psi)) / 2)),
+    list2theta(list(
+      MU = LIST$MU - sqrt(2 / pi) * delta,
+      SIGMA = (psi + t(psi)) / 2
+    )),
     unname(delta / sqrt(diag(psi)))
   )
 }
 
 skew_delta <- function(SIGMA, SKEW) {
-  sign(SKEW) * sqrt(diag(SIGMA)) * sqrt(pi / 2) * (2 * abs(SKEW) / (4 - pi))^(1 / 3)
+  sign(SKEW) *
+    sqrt(diag(SIGMA)) *
+    sqrt(pi / 2) *
+    (2 * abs(SKEW) / (4 - pi))^(1 / 3)
 }
 
 skew_t <- function(SIGMA, SKEW) {
@@ -129,7 +138,8 @@ theta2dp <- function(THETA) {
   list(
     xi = li$MU,
     Omega = om,
-    alpha = sqrt(diag(om)) * oid /
+    alpha = sqrt(diag(om)) *
+      oid /
       sqrt(max(1 - sum(delta * oid), .Machine$double.eps))
   )
 }
@@ -247,11 +257,7 @@ joe2theta <- function(JOEPAR) {
 #' @param VCOV_H Number of datasets simulated at the IB estimate to compute the Jacobian behind
 #'   [vcov()][vcov.accmeta_ib].
 #' @param VCOV_N_NODES Number of quadrature nodes per dimension of the TGLMM score used for the
-#'   Jacobian. See [fit_tglmm()]. The default keeps the quadrature error of the score far below the
-#'   Monte Carlo error of the Jacobian at a fraction of the cost of the `fit_tglmm()` default. The
-#'   quadrature error shrinks like \eqn{n^{-\lfloor (k+2)/3 \rfloor}} in the per-study counts
-#'   \eqn{n} for \eqn{k} nodes (Jin and Andersson, 2020), so studies with small counts may need
-#'   more nodes.
+#'   Jacobian. See [fit_tglmm()].
 #' @param VCOV_N_ITER Number of Newton steps locating the integrand mode in the TGLMM score used
 #'   for the Jacobian. See [fit_tglmm()].
 #' @param BOX_SD Range of the random-effect standard deviations; an IB update leaving it stops
@@ -289,7 +295,8 @@ set_ib_control <- function(
     is.numeric(H),
     length(H) == 1,
     H > 9,
-    is.null(MAX_ITER) || (is.numeric(MAX_ITER) && length(MAX_ITER) == 1 && MAX_ITER >= 1),
+    is.null(MAX_ITER) ||
+      (is.numeric(MAX_ITER) && length(MAX_ITER) == 1 && MAX_ITER >= 1),
     is.numeric(STEP),
     length(STEP) == 1,
     STEP > 0,
@@ -341,4 +348,44 @@ set_ib_control <- function(
   )
   class(out) <- "accmeta_ib_control"
   return(out)
+}
+
+make_obj <- function(
+  DATA,
+  THETA,
+  PRIOR,
+  WORKPAR,
+  MODEL,
+  N_NODES = 15L,
+  N_ITER = 10L
+) {
+  work <- ib_to_work(THETA, WORKPAR)
+  prior <- list(
+    DEGREES = as.numeric(PRIOR$DEGREES),
+    SCALE = as.numeric(PRIOR$SCALE),
+    WORKPAR = WORKPAR
+  )
+  data <- if (MODEL == "tlmm") {
+    c(list(MODEL = "tlmm", EST = DATA$est, WVAR = DATA$wvar), prior)
+  } else {
+    gh <- statmod::gauss.quad(N_NODES, "hermite")
+    c(
+      list(
+        MODEL = "tglmm",
+        y = as.integer(t(DATA$counts[, 1:3, drop = FALSE])),
+        den = as.integer(t(DATA$counts[, 4:6, drop = FALSE])),
+        f = as.factor(rep(seq_len(DATA$n_studies), each = 3)),
+        niter = as.integer(N_ITER),
+        ws = as.numeric(exp(gh$nodes^2) * gh$weights),
+        z = as.numeric(gh$nodes)
+      ),
+      prior
+    )
+  }
+  TMB::MakeADFun(
+    data = data,
+    parameters = list(MU = work[1:3], ALPHA = work[4:9]),
+    DLL = "accmeta",
+    silent = TRUE
+  )
 }

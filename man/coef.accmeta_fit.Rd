@@ -4,6 +4,8 @@
 \alias{coef.accmeta_fit}
 \alias{print.accmeta_fit}
 \alias{print.accmeta_ib}
+\alias{vcov.accmeta_fit}
+\alias{confint.accmeta_fit}
 \title{Extract estimated parameters}
 \usage{
 \method{coef}{accmeta_fit}(object, ...)
@@ -11,6 +13,17 @@
 \method{print}{accmeta_fit}(x, ...)
 
 \method{print}{accmeta_ib}(x, ...)
+
+\method{vcov}{accmeta_fit}(object, TYPE = c("sandwich", "hessian"), ...)
+
+\method{confint}{accmeta_fit}(
+  object,
+  parm,
+  level = 0.95,
+  TYPE = c("sandwich", "hessian"),
+  SCALE = c("working", "natural"),
+  ...
+)
 }
 \arguments{
 \item{object}{A fitted object, as returned by \code{\link[=fit_tlmm]{fit_tlmm()}}, \code{\link[=fit_tglmm]{fit_tglmm()}} or
@@ -19,6 +32,21 @@
 \item{...}{Ignored.}
 
 \item{x}{A fitted object.}
+
+\item{TYPE}{\code{"sandwich"} for \eqn{H^{-1} (\sum_i s_i s_i^\top) H^{-1}}, with
+\eqn{H} the Hessian of the maximised objective and \eqn{s_i} the score of
+the log-likelihood of study \eqn{i}, as in Guolo (2023); \code{"hessian"} for
+\eqn{H^{-1}}.}
+
+\item{parm}{Parameters to report, by name or position. All by default.}
+
+\item{level}{Confidence level.}
+
+\item{SCALE}{\code{"working"} for intervals in the coordinates of the fit's
+\code{WORKPAR}, or \code{"natural"} for the means, standard deviations and
+correlations, obtained by back-transforming Wald limits on the scale of
+\code{\link[=theta2joe]{theta2joe()}}; the correlation of \eqn{\xi} and \eqn{\gamma} uses the delta
+method on its Fisher z.}
 }
 \value{
 A list with \code{MU} and \code{SIGMA}, named as documented for \code{\link[=theta2list]{theta2list()}}.

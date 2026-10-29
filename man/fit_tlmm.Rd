@@ -33,8 +33,8 @@ deviations and Fisher-z partial correlations, see \code{\link[=theta2joe]{theta2
 A list with components \code{THETA}, the fitted parameter vector in the
 layout documented for \code{\link[=theta2list]{theta2list()}}; \code{CONVERGENCE}, the optimiser
 convergence code; \code{NLL}, the negative log-likelihood at the optimum;
-\code{OBJ}, the TMB object, retained for \code{\link[TMB:sdreport]{TMB::sdreport()}}; and \code{PRIOR}, the
-prior used.
+\code{OBJ}, the TMB object, retained for \code{\link[TMB:sdreport]{TMB::sdreport()}}; \code{PRIOR}, the prior
+used; and \code{DATA} and \code{WORKPAR}, the inputs, retained for \link[=vcov.accmeta_fit]{vcov()}.
 }
 \description{
 Trivariate linear mixed model. A within-study normal approximation

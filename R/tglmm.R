@@ -23,8 +23,9 @@
 #' @return A list with components `THETA`, the fitted parameter vector in the
 #'   layout documented for [theta2list()]; `CONVERGENCE`, the optimiser
 #'   convergence code; `NLL`, the negative log-likelihood at the optimum;
-#'   `OBJ`, the TMB object, retained for [TMB::sdreport()]; and `PRIOR`, the
-#'   prior used.
+#'   `OBJ`, the TMB object, retained for [TMB::sdreport()]; `PRIOR`, the prior
+#'   used; and `DATA`, `WORKPAR`, `N_NODES` and `N_ITER`, the inputs, retained
+#'   for [vcov()][vcov.accmeta_fit].
 #'
 #' @examples
 #' \dontrun{
@@ -63,31 +64,7 @@ fit_tglmm <- function(
     length(N_ITER) == 1,
     N_ITER >= 1
   )
-  gh <- statmod::gauss.quad(N_NODES, "hermite")
-  obj <- TMB::MakeADFun(
-    data = list(
-      MODEL = "tglmm",
-      y = as.integer(t(DATA$counts[, 1:3, drop = FALSE])),
-      den = as.integer(t(DATA$counts[, 4:6, drop = FALSE])),
-      f = as.factor(rep(seq_len(DATA$n_studies), each = 3)),
-      niter = as.integer(N_ITER),
-      ws = as.numeric(exp(gh$nodes^2) * gh$weights),
-      z = as.numeric(gh$nodes),
-      DEGREES = as.numeric(PRIOR$DEGREES),
-      SCALE = as.numeric(PRIOR$SCALE),
-      WORKPAR = WORKPAR
-    ),
-    parameters = list(
-      MU = THETA_START[1:3],
-      ALPHA = if (WORKPAR == "Joe") {
-        theta2joe(THETA_START)[4:9]
-      } else {
-        THETA_START[4:9]
-      }
-    ),
-    DLL = "accmeta",
-    silent = TRUE
-  )
+  obj <- make_obj(DATA, THETA_START, PRIOR, WORKPAR, "tglmm", N_NODES, N_ITER)
   est <- ucminf::ucminf(
     par = obj$par,
     fn = obj$fn,
@@ -99,7 +76,11 @@ fit_tglmm <- function(
     CONVERGENCE = est$convergence,
     NLL = est$value,
     OBJ = obj,
-    PRIOR = PRIOR
+    PRIOR = PRIOR,
+    DATA = DATA,
+    WORKPAR = WORKPAR,
+    N_NODES = N_NODES,
+    N_ITER = N_ITER
   )
   class(out) <- c("accmeta_tglmm", "accmeta_fit")
   return(out)

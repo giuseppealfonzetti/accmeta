@@ -5,9 +5,8 @@ ib_jacobian_draw <- function(
   DATA,
   PRIOR,
   WORKPAR,
-  N_ITER,
-  Z,
-  WS
+  N_NODES,
+  N_ITER
 ) {
   withr::local_seed(
     SEEDS[REP],
@@ -35,23 +34,7 @@ ib_jacobian_draw <- function(
     return(rep(NA, 18))
   }
 
-  obj <- TMB::MakeADFun(
-    data = list(
-      MODEL = "tglmm",
-      y = as.integer(t(d$counts[, 1:3, drop = FALSE])),
-      den = as.integer(t(d$counts[, 4:6, drop = FALSE])),
-      f = as.factor(rep(seq_len(d$n_studies), each = 3)),
-      niter = as.integer(N_ITER),
-      ws = WS,
-      z = Z,
-      DEGREES = 4,
-      SCALE = Inf,
-      WORKPAR = WORKPAR
-    ),
-    parameters = list(MU = theta_work[1:3], ALPHA = theta_work[4:9]),
-    DLL = "accmeta",
-    silent = TRUE
-  )
+  obj <- make_obj(d, THETA, set_prior(4, Inf), WORKPAR, "tglmm", N_NODES, N_ITER)
   c(work(f$THETA), -as.numeric(obj$gr(theta_work)))
 }
 
@@ -67,16 +50,14 @@ ib_jacobian <- function(
   if (is.null(SEEDS)) {
     SEEDS <- sample.int(.Machine$integer.max, H)
   }
-  gh <- statmod::gauss.quad(N_NODES, "hermite")
   args <- list(
     SEEDS = SEEDS,
     THETA = FIT$THETA,
     DATA = FIT$DATA,
     PRIOR = FIT$PRIOR,
     WORKPAR = FIT$WORKPAR,
-    N_ITER = N_ITER,
-    Z = gh$nodes,
-    WS = exp(gh$nodes^2) * gh$weights
+    N_NODES = N_NODES,
+    N_ITER = N_ITER
   )
   rows <- if (NCORES > 1L) {
     ib_start_daemons(NCORES, H)

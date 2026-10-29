@@ -43,3 +43,45 @@ test_that("printing is short and invisible", {
   expect_match(ib_out[1], "accmeta_ib")
   expect_match(ib_out[1], b$STOP)
 })
+
+test_that("vcov and confint give sandwich and Hessian Wald intervals", {
+  set.seed(1)
+  tab <- sim_data(10, th, sample(40:200, 10, TRUE))
+  fits <- list(
+    fit_tlmm(set_meta_data(tab, CC = 0.5)),
+    fit_tglmm(set_meta_data(tab, CC = 0, VERBOSE = FALSE), N_NODES = 5L)
+  )
+  for (f in fits) {
+    par <- f$OBJ$env$last.par.best
+    h <- vcov(f, TYPE = "hessian")
+    expect_equal(unname(h), unname(solve(f$OBJ$he(par))))
+    v <- vcov(f)
+    expect_identical(rownames(v), rownames(h))
+    expect_true(isSymmetric(unname(v), tol = 1e-8))
+    expect_true(all(eigen(v, only.values = TRUE)$values > 0))
+    ci <- confint(f)
+    expect_equal(
+      unname(ci[, 1]),
+      unname(par - stats::qnorm(0.975) * sqrt(diag(v)))
+    )
+    nat <- confint(f, SCALE = "natural")
+    rho <- cov2cor(theta2list(f$THETA)$SIGMA)[2, 3]
+    expect_identical(rownames(nat)[c(4, 9)], c("sd_eta", "rho_xi_gamma"))
+    expect_true(nat[9, 1] < rho && rho < nat[9, 2])
+    expect_true(all(abs(nat[7:9, ]) < 1))
+    expect_equal(unname(nat[1:3, ]), unname(ci[1:3, ]))
+  }
+  joe <- fit_tlmm(set_meta_data(tab, CC = 0.5), WORKPAR = "Joe")
+  expect_equal(
+    confint(joe, SCALE = "natural"),
+    confint(fits[[1]], SCALE = "natural"),
+    tolerance = 1e-4
+  )
+})
+
+test_that("vcov refuses fits on the boundary", {
+  set.seed(1)
+  tab <- sim_data(10, th, sample(40:200, 10, TRUE))
+  f <- fit_tlmm(set_meta_data(tab, CC = 0.5), PRIOR = set_prior(4, Inf))
+  expect_error(vcov(f), "singular Hessian")
+})

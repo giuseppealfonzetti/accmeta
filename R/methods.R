@@ -106,10 +106,7 @@ print.accmeta_ib <- function(x, ...) {
 #'   it. The IB is not refitted.
 #' @param METHOD `"wald"` or `"basic"`.
 #' @param SCALE `"working"` for intervals in the coordinates of `WORKPAR`, or
-#'   `"natural"` for the means, standard deviations and correlations, obtained by
-#'   back-transforming the limits on the scale of [theta2joe()]; the correlation
-#'   of \eqn{\xi} and \eqn{\gamma} uses the delta method on its Fisher z. Needs
-#'   `WORKPAR = "Joe"`.
+#'   `"natural"` for the means, standard deviations and correlations.
 #' @param parm Parameters to report, by name or position. All by default.
 #' @param level Confidence level.
 #' @param ... Ignored by `vcov()` and `confint()`; not allowed by `update()`.
@@ -176,15 +173,106 @@ confint.accmeta_ib <- function(
     stop("SCALE = 'natural' needs a fit with WORKPAR = 'Joe'.", call. = FALSE)
   }
   v <- vcov(object)
-  theta <- if (object$WORKPAR == "Joe") {
-    theta2joe(object$THETA)
-  } else {
-    object$THETA
+  dev <- if (METHOD == "basic") {
+    jac <- object$JACOBIAN
+    pi_dev <- sweep(jac$PI, 2, colMeans(jac$PI))
+    sqrt(1 + 1 / object$CONTROL$H) * t(solve(jac$J, t(pi_dev)))
   }
+  ci <- ci_table(
+    ib_to_work(object$THETA, object$WORKPAR),
+    v,
+    level,
+    SCALE == "natural",
+    dev
+  )
+  if (missing(parm)) ci else ci[parm, , drop = FALSE]
+}
+
+
+#' @param TYPE `"sandwich"` or `"hessian"` .
+#' @param SCALE `"working"` for intervals in the coordinates of the fit's
+#'   `WORKPAR`, or `"natural"` for the means, standard deviations and
+#'   correlations.
+#' @param parm Parameters to report, by name or position. All by default.
+#' @param level Confidence level.
+#'
+#' @rdname coef.accmeta_fit
+#' @importFrom stats vcov
+#' @export
+vcov.accmeta_fit <- function(object, TYPE = c("sandwich", "hessian"), ...) {
+  fit_vcov(object, match.arg(TYPE), object$WORKPAR)
+}
+
+
+#' @rdname coef.accmeta_fit
+#' @importFrom stats confint
+#' @export
+confint.accmeta_fit <- function(
+  object,
+  parm,
+  level = 0.95,
+  TYPE = c("sandwich", "hessian"),
+  SCALE = c("working", "natural"),
+  ...
+) {
+  TYPE <- match.arg(TYPE)
+  SCALE <- match.arg(SCALE)
+  workpar <- if (SCALE == "natural") "Joe" else object$WORKPAR
+  ci <- ci_table(
+    ib_to_work(object$THETA, workpar),
+    fit_vcov(object, TYPE, workpar),
+    level,
+    SCALE == "natural"
+  )
+  if (missing(parm)) ci else ci[parm, , drop = FALSE]
+}
+
+
+fit_vcov <- function(FIT, TYPE, WORKPAR) {
+  model <- if (inherits(FIT, "accmeta_tlmm")) "tlmm" else "tglmm"
+  build <- function(DATA, PRIOR) {
+    make_obj(
+      DATA,
+      FIT$THETA,
+      PRIOR,
+      WORKPAR,
+      model,
+      FIT$N_NODES,
+      FIT$N_ITER
+    )
+  }
+  par <- ib_to_work(FIT$THETA, WORKPAR)
+  h <- build(FIT$DATA, FIT$PRIOR)$he(par)
+  if (rcond(h) < .Machine$double.eps) {
+    stop(
+      "singular Hessian: the fit is on the boundary of the parameter space. ",
+      "A prior with DEGREES > 4 (see set_prior()) keeps it inside.",
+      call. = FALSE
+    )
+  }
+  out <- solve(h)
+  if (TYPE == "sandwich") {
+    s <- sapply(seq_len(FIT$DATA$n_studies), function(i) {
+      d <- set_meta_data(
+        FIT$DATA$tab[i, , drop = FALSE],
+        CC = FIT$DATA$CC,
+        VERBOSE = FALSE
+      )
+      build(d, set_prior(4, Inf))$gr(par)
+    })
+    out <- out %*% tcrossprod(s) %*% out
+  }
+  nm <- ib_work_names(WORKPAR)
+  dimnames(out) <- list(nm, nm)
+  out
+}
+
+
+ci_table <- function(THETA, V, LEVEL, NATURAL, DEV = NULL) {
   g <- diag(9)
-  nm <- rownames(v)
-  if (SCALE == "natural") {
-    r <- tanh(theta[7:9])
+  nm <- rownames(V)
+  if (NATURAL) {
+    r <- tanh(THETA[7:9])
     q <- sqrt((1 - r[1]^2) * (1 - r[2]^2))
     rho <- r[1] * r[2] + r[3] * q
     g[9, ] <- c(
@@ -194,7 +282,7 @@ confint.accmeta_ib <- function(
       (1 - r[3]^2) * q
     ) /
       (1 - rho^2)
-    theta[9] <- atanh(rho)
+    THETA[9] <- atanh(rho)
     nm <- c(
       "mu_eta",
       "mu_xi",
@@ -207,25 +295,20 @@ confint.accmeta_ib <- function(
       "rho_xi_gamma"
     )
   }
-  a <- (1 - level) / 2
-  ci <- if (METHOD == "wald") {
-    theta + outer(sqrt(diag(g %*% v %*% t(g))), stats::qnorm(c(a, 1 - a)))
+  a <- (1 - LEVEL) / 2
+  ci <- if (is.null(DEV)) {
+    THETA + outer(sqrt(diag(g %*% V %*% t(g))), stats::qnorm(c(a, 1 - a)))
   } else {
-    jac <- object$JACOBIAN
-    pi_dev <- sweep(jac$PI, 2, colMeans(jac$PI))
-    theta_dev <- sqrt(1 + 1 / object$CONTROL$H) *
-      t(solve(jac$J, t(pi_dev))) %*%
-      t(g)
-    theta -
+    THETA -
       t(apply(
-        theta_dev,
+        DEV %*% t(g),
         2,
         stats::quantile,
         probs = c(1 - a, a),
         names = FALSE
       ))
   }
-  if (SCALE == "natural") {
+  if (NATURAL) {
     ci[4:6, ] <- exp(ci[4:6, ])
     ci[7:9, ] <- tanh(ci[7:9, ])
   }
@@ -233,5 +316,5 @@ confint.accmeta_ib <- function(
     nm,
     paste(format(100 * c(a, 1 - a), trim = TRUE), "%")
   )
-  if (missing(parm)) ci else ci[parm, , drop = FALSE]
+  ci
 }

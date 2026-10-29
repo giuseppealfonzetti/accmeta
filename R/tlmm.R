@@ -19,8 +19,8 @@
 #' @return A list with components `THETA`, the fitted parameter vector in the
 #'   layout documented for [theta2list()]; `CONVERGENCE`, the optimiser
 #'   convergence code; `NLL`, the negative log-likelihood at the optimum;
-#'   `OBJ`, the TMB object, retained for [TMB::sdreport()]; and `PRIOR`, the
-#'   prior used.
+#'   `OBJ`, the TMB object, retained for [TMB::sdreport()]; `PRIOR`, the prior
+#'   used; and `DATA` and `WORKPAR`, the inputs, retained for [vcov()][vcov.accmeta_fit].
 #'
 #' @examples
 #' th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
@@ -46,26 +46,7 @@ fit_tlmm <- function(
     THETA_START <- init_theta(DATA)
   }
   stopifnot(is.numeric(THETA_START), length(THETA_START) == 9)
-  obj <- TMB::MakeADFun(
-    data = list(
-      MODEL = "tlmm",
-      EST = DATA$est,
-      WVAR = DATA$wvar,
-      DEGREES = as.numeric(PRIOR$DEGREES),
-      SCALE = as.numeric(PRIOR$SCALE),
-      WORKPAR = WORKPAR
-    ),
-    parameters = list(
-      MU = THETA_START[1:3],
-      ALPHA = if (WORKPAR == "Joe") {
-        theta2joe(THETA_START)[4:9]
-      } else {
-        THETA_START[4:9]
-      }
-    ),
-    DLL = "accmeta",
-    silent = TRUE
-  )
+  obj <- make_obj(DATA, THETA_START, PRIOR, WORKPAR, "tlmm")
   est <- ucminf::ucminf(
     par = obj$par,
     fn = obj$fn,
@@ -77,7 +58,9 @@ fit_tlmm <- function(
     CONVERGENCE = est$convergence,
     NLL = est$value,
     OBJ = obj,
-    PRIOR = PRIOR
+    PRIOR = PRIOR,
+    DATA = DATA,
+    WORKPAR = WORKPAR
   )
   class(out) <- c("accmeta_tlmm", "accmeta_fit")
   return(out)
