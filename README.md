@@ -98,9 +98,9 @@ tlmm <- fit_tlmm(d_cc)
 tglmm <- fit_tglmm(d)
 ib <- fit_ib(d_cc)
 ib
-#> <accmeta_ib> 5 iterations, stopped on converged 
+#> <accmeta_ib> 6 iterations, stopped on converged 
 #>    SE    SP  PREV 
-#> 0.939 0.906 0.372
+#> 0.940 0.906 0.372
 ```
 
 `coef()` extract estimated parameters:
@@ -128,14 +128,14 @@ coef(tglmm)
 #> gamma 0.5893510 0.1852082 0.6539028
 coef(ib)
 #> $MU
-#>       eta        xi     gamma 
-#>  2.741613 -2.269342 -0.522596 
+#>        eta         xi      gamma 
+#>  2.7466954 -2.2689605 -0.5218288 
 #> 
 #> $SIGMA
 #>             eta        xi     gamma
-#> eta   0.7715933 0.3834236 0.6289695
-#> xi    0.3834236 0.4744769 0.2652382
-#> gamma 0.6289695 0.2652382 0.6964915
+#> eta   0.7834359 0.3877441 0.6318065
+#> xi    0.3877441 0.4743261 0.2673085
+#> gamma 0.6318065 0.2673085 0.6958735
 ```
 
 All models are estimated, by default, with the recommended Wishart
@@ -177,44 +177,61 @@ the Fisher-z partial correlations.
 ``` r
 sqrt(diag(vcov(ib)))
 #>       mu_eta        mu_xi     mu_gamma   log_sd_eta    log_sd_xi log_sd_gamma 
-#>    0.3353733    0.2292392    0.2359522    0.3761369    0.3245307    0.2233054 
+#>    0.3379689    0.2290867    0.2359493    0.3726743    0.3242787    0.2229079 
 #>      z_rho12      z_rho13    z_rho23_1 
-#>    0.5361700    0.6752042    0.6776142
+#>    0.5312978    0.6633973    0.6541761
 confint(ib)
 #>                   2.5 %      97.5 %
-#> mu_eta        2.1489738  3.46361320
-#> mu_xi        -2.7007043 -1.80210302
-#> mu_gamma     -0.9528341 -0.02791858
-#> log_sd_eta   -0.8532515  0.62117797
-#> log_sd_xi    -1.0284955  0.24364161
-#> log_sd_gamma -0.6118428  0.26349844
-#> z_rho12      -0.4598593  1.64188842
-#> z_rho13      -0.2099535  2.43679828
-#> z_rho23_1    -1.3399962  1.31620282
+#> mu_eta        2.1510149  3.47582878
+#> mu_xi        -2.7017213 -1.80371804
+#> mu_gamma     -0.9524149 -0.02751072
+#> log_sd_eta   -0.8388008  0.62205561
+#> log_sd_xi    -1.0271236  0.24402566
+#> log_sd_gamma -0.6109018  0.26288113
+#> z_rho12      -0.4623547  1.62029435
+#> z_rho13      -0.2093973  2.39107249
+#> z_rho23_1    -1.2723168  1.29200628
 confint(ib, METHOD = "basic")
-#>                    2.5 %      97.5 %
-#> mu_eta        2.11498171  3.42125809
-#> mu_xi        -2.67502680 -1.79722682
-#> mu_gamma     -0.94537195 -0.03217173
-#> log_sd_eta   -0.76055283  0.68747094
-#> log_sd_xi    -0.95459164  0.36555991
-#> log_sd_gamma -0.55943702  0.30966978
-#> z_rho12      -0.37215876  1.67155949
-#> z_rho13      -0.08307779  2.41676793
-#> z_rho23_1    -1.41323684  1.08607792
+#>                   2.5 %      97.5 %
+#> mu_eta        2.1466417  3.42988049
+#> mu_xi        -2.6803782 -1.80032506
+#> mu_gamma     -0.9509505 -0.02475862
+#> log_sd_eta   -0.7523939  0.66694223
+#> log_sd_xi    -0.9457089  0.36499269
+#> log_sd_gamma -0.5606429  0.31394127
+#> z_rho12      -0.3835294  1.64579306
+#> z_rho13      -0.1039431  2.35580691
+#> z_rho23_1    -1.3324174  1.07129913
 ```
 
-Intervals for the can be mapped onto the natural scale via
+Intervals mapped onto the natural scale via
 
 ``` r
-ci <- confint(ib, parm = 1:3)
-rbind(
-  sensitivity = plogis(ci["mu_eta", ]),
-  specificity = unname(1 - plogis(ci["mu_xi", 2:1])),
-  prevalence = plogis(ci["mu_gamma", ])
-)
-#>                 2.5 %    97.5 %
-#> sensitivity 0.8955728 0.9696345
-#> specificity 0.8584047 0.9370682
-#> prevalence  0.2783152 0.4930208
+confint(ib, SCALE = "natural")
+#>                    2.5 %      97.5 %
+#> mu_eta         2.1510149  3.47582878
+#> mu_xi         -2.7017213 -1.80371804
+#> mu_gamma      -0.9524149 -0.02751072
+#> sd_eta         0.4322286  1.86275320
+#> sd_xi          0.3580353  1.27637709
+#> sd_gamma       0.5428611  1.30067209
+#> rho_eta_xi    -0.4320014  0.92466691
+#> rho_eta_gamma -0.2063895  0.98338320
+#> rho_xi_gamma  -0.3171718  0.84160083
+```
+
+Intervals mapped onto the reporting scale via
+
+``` r
+confint(ib, SCALE = "reporting")
+#>                    2.5 %    97.5 %
+#> sensitivity    0.8957636 0.9699921
+#> specificity    0.8586009 0.9371281
+#> prevalence     0.2783994 0.4931228
+#> sd_eta         0.4322286 1.8627532
+#> sd_xi          0.3580353 1.2763771
+#> sd_gamma       0.5428611 1.3006721
+#> rho_eta_xi    -0.4320014 0.9246669
+#> rho_eta_gamma -0.2063895 0.9833832
+#> rho_xi_gamma  -0.3171718 0.8416008
 ```

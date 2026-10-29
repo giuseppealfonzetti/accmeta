@@ -118,13 +118,14 @@ confint(ib)
 confint(ib, METHOD = "basic")
 ```
 
-Intervals for the can be mapped onto the natural scale via
+Intervals mapped onto the natural scale via
 
 ```{r ib-natural}
-ci <- confint(ib, parm = 1:3)
-rbind(
-  sensitivity = plogis(ci["mu_eta", ]),
-  specificity = unname(1 - plogis(ci["mu_xi", 2:1])),
-  prevalence = plogis(ci["mu_gamma", ])
-)
+confint(ib, SCALE = "natural")
+```
+
+Intervals mapped onto the reporting scale via
+
+```{r ib-reporting}
+confint(ib, SCALE = "reporting")
 ```

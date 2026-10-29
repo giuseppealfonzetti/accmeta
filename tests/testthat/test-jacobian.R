@@ -93,6 +93,12 @@ test_that("confint back-transforms to the natural scale", {
     expect_equal(unname(n[7:8, ]), unname(tanh(w[7:8, ])))
     expect_true(n[9, 1] < rho && rho < n[9, 2])
     expect_true(all(abs(n[7:9, ]) < 1))
+    p <- confint(fit, METHOD = m, SCALE = "reporting")
+    expect_identical(rownames(p)[1:3], c("sensitivity", "specificity", "prevalence"))
+    expect_equal(unname(p[4:9, ]), unname(n[4:9, ]))
+    expect_equal(unname(p[c(1, 3), ]), unname(plogis(n[c(1, 3), ])))
+    expect_equal(unname(p[2, ]), unname(1 - plogis(n[2, 2:1])))
+    expect_true(all(p[1:3, 1] < p[1:3, 2] & p[1:3, ] > 0 & p[1:3, ] < 1))
   }
   zr <- function(x) {
     r <- tanh(x[7:9])

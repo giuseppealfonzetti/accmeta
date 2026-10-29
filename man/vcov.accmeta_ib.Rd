@@ -15,7 +15,7 @@
   parm,
   level = 0.95,
   METHOD = c("wald", "basic"),
-  SCALE = c("working", "natural"),
+  SCALE = c("working", "natural", "reporting"),
   ...
 )
 }
@@ -33,11 +33,10 @@ it. The IB is not refitted.}
 
 \item{METHOD}{\code{"wald"} or \code{"basic"}.}
 
-\item{SCALE}{\code{"working"} for intervals in the coordinates of \code{WORKPAR}, or
-\code{"natural"} for the means, standard deviations and correlations, obtained by
-back-transforming the limits on the scale of \code{\link[=theta2joe]{theta2joe()}}; the correlation
-of \eqn{\xi} and \eqn{\gamma} uses the delta method on its Fisher z. Needs
-\code{WORKPAR = "Joe"}.}
+\item{SCALE}{\code{"working"} for intervals in the coordinates of \code{WORKPAR},
+\code{"natural"} for the means, standard deviations and correlations, or
+\code{"reporting"}, as \code{"natural"} with sensitivity, specificity and prevalence
+in place of the means.}
 }
 \value{
 \code{update()} returns the fit with its Jacobian added or removed.

@@ -105,8 +105,10 @@ print.accmeta_ib <- function(x, ...) {
 #' @param VCOV If `TRUE`, computes and stores the Jacobian; if `FALSE`, drops
 #'   it. The IB is not refitted.
 #' @param METHOD `"wald"` or `"basic"`.
-#' @param SCALE `"working"` for intervals in the coordinates of `WORKPAR`, or
-#'   `"natural"` for the means, standard deviations and correlations.
+#' @param SCALE `"working"` for intervals in the coordinates of `WORKPAR`,
+#'   `"natural"` for the means, standard deviations and correlations, or
+#'   `"reporting"`, as `"natural"` with sensitivity, specificity and prevalence
+#'   in place of the means.
 #' @param parm Parameters to report, by name or position. All by default.
 #' @param level Confidence level.
 #' @param ... Ignored by `vcov()` and `confint()`; not allowed by `update()`.
@@ -164,13 +166,13 @@ confint.accmeta_ib <- function(
   parm,
   level = 0.95,
   METHOD = c("wald", "basic"),
-  SCALE = c("working", "natural"),
+  SCALE = c("working", "natural", "reporting"),
   ...
 ) {
   METHOD <- match.arg(METHOD)
   SCALE <- match.arg(SCALE)
-  if (SCALE == "natural" && object$WORKPAR != "Joe") {
-    stop("SCALE = 'natural' needs a fit with WORKPAR = 'Joe'.", call. = FALSE)
+  if (SCALE != "working" && object$WORKPAR != "Joe") {
+    stop("SCALE = '", SCALE, "' needs a fit with WORKPAR = 'Joe'.", call. = FALSE)
   }
   v <- vcov(object)
   dev <- if (METHOD == "basic") {
@@ -182,7 +184,7 @@ confint.accmeta_ib <- function(
     ib_to_work(object$THETA, object$WORKPAR),
     v,
     level,
-    SCALE == "natural",
+    SCALE,
     dev
   )
   if (missing(parm)) ci else ci[parm, , drop = FALSE]
@@ -191,8 +193,9 @@ confint.accmeta_ib <- function(
 
 #' @param TYPE `"sandwich"` or `"hessian"` .
 #' @param SCALE `"working"` for intervals in the coordinates of the fit's
-#'   `WORKPAR`, or `"natural"` for the means, standard deviations and
-#'   correlations.
+#'   `WORKPAR`, `"natural"` for the means, standard deviations and
+#'   correlations, or `"reporting"`, as `"natural"` with sensitivity,
+#'   specificity and prevalence in place of the means.
 #' @param parm Parameters to report, by name or position. All by default.
 #' @param level Confidence level.
 #'
@@ -212,17 +215,17 @@ confint.accmeta_fit <- function(
   parm,
   level = 0.95,
   TYPE = c("sandwich", "hessian"),
-  SCALE = c("working", "natural"),
+  SCALE = c("working", "natural", "reporting"),
   ...
 ) {
   TYPE <- match.arg(TYPE)
   SCALE <- match.arg(SCALE)
-  workpar <- if (SCALE == "natural") "Joe" else object$WORKPAR
+  workpar <- if (SCALE == "working") object$WORKPAR else "Joe"
   ci <- ci_table(
     ib_to_work(object$THETA, workpar),
     fit_vcov(object, TYPE, workpar),
     level,
-    SCALE == "natural"
+    SCALE
   )
   if (missing(parm)) ci else ci[parm, , drop = FALSE]
 }
@@ -268,10 +271,10 @@ fit_vcov <- function(FIT, TYPE, WORKPAR) {
 }
 
 
-ci_table <- function(THETA, V, LEVEL, NATURAL, DEV = NULL) {
+ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
   g <- diag(9)
   nm <- rownames(V)
-  if (NATURAL) {
+  if (SCALE != "working") {
     r <- tanh(THETA[7:9])
     q <- sqrt((1 - r[1]^2) * (1 - r[2]^2))
     rho <- r[1] * r[2] + r[3] * q
@@ -308,9 +311,14 @@ ci_table <- function(THETA, V, LEVEL, NATURAL, DEV = NULL) {
         names = FALSE
       ))
   }
-  if (NATURAL) {
+  if (SCALE != "working") {
     ci[4:6, ] <- exp(ci[4:6, ])
     ci[7:9, ] <- tanh(ci[7:9, ])
+  }
+  if (SCALE == "reporting") {
+    ci[1:3, ] <- stats::plogis(ci[1:3, ])
+    ci[2, ] <- 1 - ci[2, 2:1]
+    nm[1:3] <- c("sensitivity", "specificity", "prevalence")
   }
   dimnames(ci) <- list(
     nm,

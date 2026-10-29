@@ -53,11 +53,7 @@ Also used for the Jacobian behind \link[=vcov.accmeta_ib]{vcov()}.}
 \link[=vcov.accmeta_ib]{vcov()}.}
 
 \item{VCOV_N_NODES}{Number of quadrature nodes per dimension of the TGLMM score used for the
-Jacobian. See \code{\link[=fit_tglmm]{fit_tglmm()}}. The default keeps the quadrature error of the score far below the
-Monte Carlo error of the Jacobian at a fraction of the cost of the \code{fit_tglmm()} default. The
-quadrature error shrinks like \eqn{n^{-\lfloor (k+2)/3 \rfloor}} in the per-study counts
-\eqn{n} for \eqn{k} nodes (Jin and Andersson, 2020), so studies with small counts may need
-more nodes.}
+Jacobian. See \code{\link[=fit_tglmm]{fit_tglmm()}}.}
 
 \item{VCOV_N_ITER}{Number of Newton steps locating the integrand mode in the TGLMM score used
 for the Jacobian. See \code{\link[=fit_tglmm]{fit_tglmm()}}.}

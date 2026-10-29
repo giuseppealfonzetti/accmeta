@@ -70,6 +70,11 @@ test_that("vcov and confint give sandwich and Hessian Wald intervals", {
     expect_true(nat[9, 1] < rho && rho < nat[9, 2])
     expect_true(all(abs(nat[7:9, ]) < 1))
     expect_equal(unname(nat[1:3, ]), unname(ci[1:3, ]))
+    rep <- confint(f, SCALE = "reporting")
+    expect_identical(rownames(rep)[1:3], c("sensitivity", "specificity", "prevalence"))
+    expect_equal(unname(rep[4:9, ]), unname(nat[4:9, ]))
+    expect_equal(unname(rep[2, ]), unname(1 - plogis(nat[2, 2:1])))
+    expect_true(all(rep[1:3, 1] < rep[1:3, 2]))
   }
   joe <- fit_tlmm(set_meta_data(tab, CC = 0.5), WORKPAR = "Joe")
   expect_equal(
