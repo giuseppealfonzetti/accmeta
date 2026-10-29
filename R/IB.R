@@ -70,14 +70,7 @@ fit_ib <- function(
     on.exit(mirai::daemons(0), add = TRUE)
   }
   if (is.null(CONTROL$MAX_ITER)) {
-    CONTROL$MAX_ITER <- if (DATA$n_studies < 15) 100 else 100
-    if (DATA$n_studies < 15) {
-      warning(
-        "fewer than 15 studies: the IB is stopped after 3 steps, where further ",
-        "iterations tend to overcorrect; set MAX_ITER to override.",
-        call. = FALSE
-      )
-    }
+    CONTROL$MAX_ITER <- 100
   }
   if (DATA$CC <= 0) {
     stop(
@@ -177,7 +170,12 @@ fit_ib <- function(
 
     # mahalanobis distance of the residual for the convergence test
     t2 <- drop(crossprod(res[live], solve(vcov_reg, res[live])))
-    threshold <- if (budget_only) NA else (h_ok - 1) * CONTROL$PRECISION / h_ok
+    delta_m <- if (iter > 1) sqrt(t2 / progress[iter - 1]) else NA
+    threshold <- if (budget_only) {
+      NA
+    } else {
+      (h_ok - 1) * CONTROL$PRECISION / h_ok * (1 - delta_m)^2
+    }
 
     r2 <- t2 / (h_ok - 1)
 
@@ -192,7 +190,7 @@ fit_ib <- function(
     }
 
     # stop by convergence test
-    if (!budget_only && t2 < threshold) {
+    if (!budget_only && isTRUE(delta_m < 1 && t2 < threshold)) {
       best_theta <- theta
       best_t2 <- t2
       converged <- TRUE

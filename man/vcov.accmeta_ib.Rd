@@ -10,7 +10,14 @@
 
 \method{update}{accmeta_ib}(object, VCOV = TRUE, ...)
 
-\method{confint}{accmeta_ib}(object, parm, level = 0.95, METHOD = c("wald", "basic"), ...)
+\method{confint}{accmeta_ib}(
+  object,
+  parm,
+  level = 0.95,
+  METHOD = c("wald", "basic"),
+  SCALE = c("working", "natural"),
+  ...
+)
 }
 \arguments{
 \item{object}{An \code{accmeta_ib} object, as returned by \code{\link[=fit_ib]{fit_ib()}}.}
@@ -25,6 +32,12 @@ it. The IB is not refitted.}
 \item{level}{Confidence level.}
 
 \item{METHOD}{\code{"wald"} or \code{"basic"}.}
+
+\item{SCALE}{\code{"working"} for intervals in the coordinates of \code{WORKPAR}, or
+\code{"natural"} for the means, standard deviations and correlations, obtained by
+back-transforming the limits on the scale of \code{\link[=theta2joe]{theta2joe()}}; the correlation
+of \eqn{\xi} and \eqn{\gamma} uses the delta method on its Fisher z. Needs
+\code{WORKPAR = "Joe"}.}
 }
 \value{
 \code{update()} returns the fit with its Jacobian added or removed.

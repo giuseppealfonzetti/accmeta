@@ -105,6 +105,11 @@ print.accmeta_ib <- function(x, ...) {
 #' @param VCOV If `TRUE`, computes and stores the Jacobian; if `FALSE`, drops
 #'   it. The IB is not refitted.
 #' @param METHOD `"wald"` or `"basic"`.
+#' @param SCALE `"working"` for intervals in the coordinates of `WORKPAR`, or
+#'   `"natural"` for the means, standard deviations and correlations, obtained by
+#'   back-transforming the limits on the scale of [theta2joe()]; the correlation
+#'   of \eqn{\xi} and \eqn{\gamma} uses the delta method on its Fisher z. Needs
+#'   `WORKPAR = "Joe"`.
 #' @param parm Parameters to report, by name or position. All by default.
 #' @param level Confidence level.
 #' @param ... Ignored by `vcov()` and `confint()`; not allowed by `update()`.
@@ -162,23 +167,55 @@ confint.accmeta_ib <- function(
   parm,
   level = 0.95,
   METHOD = c("wald", "basic"),
+  SCALE = c("working", "natural"),
   ...
 ) {
   METHOD <- match.arg(METHOD)
+  SCALE <- match.arg(SCALE)
+  if (SCALE == "natural" && object$WORKPAR != "Joe") {
+    stop("SCALE = 'natural' needs a fit with WORKPAR = 'Joe'.", call. = FALSE)
+  }
   v <- vcov(object)
   theta <- if (object$WORKPAR == "Joe") {
     theta2joe(object$THETA)
   } else {
     object$THETA
   }
+  g <- diag(9)
+  nm <- rownames(v)
+  if (SCALE == "natural") {
+    r <- tanh(theta[7:9])
+    q <- sqrt((1 - r[1]^2) * (1 - r[2]^2))
+    rho <- r[1] * r[2] + r[3] * q
+    g[9, ] <- c(
+      rep(0, 6),
+      r[2] * (1 - r[1]^2) - r[1] * r[3] * q,
+      r[1] * (1 - r[2]^2) - r[2] * r[3] * q,
+      (1 - r[3]^2) * q
+    ) /
+      (1 - rho^2)
+    theta[9] <- atanh(rho)
+    nm <- c(
+      "mu_eta",
+      "mu_xi",
+      "mu_gamma",
+      "sd_eta",
+      "sd_xi",
+      "sd_gamma",
+      "rho_eta_xi",
+      "rho_eta_gamma",
+      "rho_xi_gamma"
+    )
+  }
   a <- (1 - level) / 2
   ci <- if (METHOD == "wald") {
-    theta + outer(sqrt(diag(v)), stats::qnorm(c(a, 1 - a)))
+    theta + outer(sqrt(diag(g %*% v %*% t(g))), stats::qnorm(c(a, 1 - a)))
   } else {
     jac <- object$JACOBIAN
     pi_dev <- sweep(jac$PI, 2, colMeans(jac$PI))
     theta_dev <- sqrt(1 + 1 / object$CONTROL$H) *
-      t(solve(jac$J, t(pi_dev)))
+      t(solve(jac$J, t(pi_dev))) %*%
+      t(g)
     theta -
       t(apply(
         theta_dev,
@@ -188,8 +225,12 @@ confint.accmeta_ib <- function(
         names = FALSE
       ))
   }
+  if (SCALE == "natural") {
+    ci[4:6, ] <- exp(ci[4:6, ])
+    ci[7:9, ] <- tanh(ci[7:9, ])
+  }
   dimnames(ci) <- list(
-    rownames(v),
+    nm,
     paste(format(100 * c(a, 1 - a), trim = TRUE), "%")
   )
   if (missing(parm)) ci else ci[parm, , drop = FALSE]

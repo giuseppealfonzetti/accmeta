@@ -97,7 +97,7 @@ test_that("STOP says which rule ended it", {
   )
   expect_identical(met$STOP, "converged")
   expect_true(met$CONVERGED)
-  expect_identical(met$N_ITER, 1L)
+  expect_identical(met$N_ITER, 2L)
 
   flat <- fit_ib(
     d, CONTROL = set_ib_control(
@@ -214,9 +214,9 @@ test_that("the Joe box keeps Sigma away from singularity", {
 test_that("max_iter runs the whole budget past the early stops", {
   set.seed(1)
   d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
-  early <- fit_ib(d, CONTROL = set_ib_control(H = 20, MAX_ITER = 6), SEEDS = 1:20)
+  early <- fit_ib(d, CONTROL = set_ib_control(H = 20, MAX_ITER = 30), SEEDS = 1:20)
   expect_identical(early$STOP, "converged")
-  expect_lt(early$N_ITER, 6L)
+  expect_lt(early$N_ITER, 30L)
   f <- fit_ib(
     d,
     CONTROL = set_ib_control(H = 20, MAX_ITER = 6, TERMINATION = "max_iter"),
@@ -229,23 +229,24 @@ test_that("max_iter runs the whole budget past the early stops", {
   expect_equal(f$THETA, f$PATH[which.min(f$PROGRESS), ])
 })
 
-test_that("mahalanobis stops once the gap is within PRECISION / H of the IB limit", {
+test_that("mahalanobis scales PRECISION by the estimated contraction", {
   set.seed(1)
   d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
   f <- fit_ib(
     d,
-    CONTROL = set_ib_control(H = 30, MAX_ITER = 10, TERMINATION = "mahalanobis"),
+    CONTROL = set_ib_control(H = 30, MAX_ITER = 30, TERMINATION = "mahalanobis"),
     SEEDS = 1:30
   )
   h_ok <- f$CONTROL$H - f$FAIL
-  r2 <- f$PROGRESS / (h_ok - 1)
-  tol <- 1 / h_ok
+  delta <- sqrt(f$PROGRESS[-1] / head(f$PROGRESS, -1))
+  pass <- delta < 1 & f$PROGRESS[-1] < f$THRESHOLD[-1]
   expect_identical(f$STOP, "converged")
   expect_true(f$CONVERGED)
-  expect_lt(f$N_ITER, 10)
-  expect_equal(f$THRESHOLD, (h_ok - 1) * tol)
-  expect_lt(tail(r2, 1), tail(tol, 1))
-  expect_true(all(head(r2, -1) >= head(tol, -1)))
+  expect_lt(f$N_ITER, 30)
+  expect_true(is.na(f$THRESHOLD[1]))
+  expect_equal(f$THRESHOLD[-1], (h_ok[-1] - 1) / h_ok[-1] * (1 - delta)^2)
+  expect_true(tail(pass, 1))
+  expect_false(any(head(pass, -1)))
   expect_equal(f$THETA, f$PATH[f$N_ITER, ])
   expect_identical(nrow(f$PATH), f$N_ITER)
 })
@@ -276,19 +277,9 @@ test_that("fit_ib leaves the caller's RNG kind and state untouched", {
   expect_identical(.Random.seed, before)
 })
 
-test_that("fewer than 15 studies stop the IB after 3 steps by default", {
+test_that("MAX_ITER defaults to 100 whatever the number of studies", {
   set.seed(1)
   d <- set_meta_data(sim_data(10, th, rep(100, 10)), CC = 0.5)
-  expect_warning(
-    f <- fit_ib(d, CONTROL = set_ib_control(H = 20), SEEDS = 1:20),
-    "fewer than 15 studies"
-  )
-  expect_identical(f$CONTROL$MAX_ITER, 3)
-  expect_lte(f$N_ITER, 3)
-  if (f$STOP == "maxit") expect_equal(f$THETA, f$PATH[nrow(f$PATH), ])
-  expect_no_warning(fit_ib(d, CONTROL = set_ib_control(H = 20, MAX_ITER = 3), SEEDS = 1:20))
-  set.seed(1)
-  d15 <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
-  expect_no_warning(g <- fit_ib(d15, CONTROL = set_ib_control(H = 20), SEEDS = 1:20))
-  expect_identical(g$CONTROL$MAX_ITER, 100)
+  expect_no_warning(f <- fit_ib(d, CONTROL = set_ib_control(H = 20), SEEDS = 1:20))
+  expect_identical(f$CONTROL$MAX_ITER, 100)
 })

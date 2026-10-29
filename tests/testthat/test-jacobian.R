@@ -81,6 +81,39 @@ test_that("confint gives Wald and basic intervals", {
   expect_identical(rownames(confint(fit, "mu_eta")), "mu_eta")
 })
 
+test_that("confint back-transforms to the natural scale", {
+  fit <- ib_small(VCOV = TRUE)
+  rho <- cov2cor(theta2list(fit$THETA)$SIGMA)[2, 3]
+  for (m in c("wald", "basic")) {
+    w <- confint(fit, METHOD = m)
+    n <- confint(fit, METHOD = m, SCALE = "natural")
+    expect_identical(rownames(n)[c(4, 9)], c("sd_eta", "rho_xi_gamma"))
+    expect_equal(unname(n[1:3, ]), unname(w[1:3, ]))
+    expect_equal(unname(n[4:6, ]), unname(exp(w[4:6, ])))
+    expect_equal(unname(n[7:8, ]), unname(tanh(w[7:8, ])))
+    expect_true(n[9, 1] < rho && rho < n[9, 2])
+    expect_true(all(abs(n[7:9, ]) < 1))
+  }
+  zr <- function(x) {
+    r <- tanh(x[7:9])
+    atanh(r[1] * r[2] + r[3] * sqrt((1 - r[1]^2) * (1 - r[2]^2)))
+  }
+  joe <- theta2joe(fit$THETA)
+  grad <- sapply(1:9, function(k) {
+    e <- replace(numeric(9), k, 1e-6)
+    (zr(joe + e) - zr(joe - e)) / 2e-6
+  })
+  se <- sqrt(drop(crossprod(grad, vcov(fit) %*% grad)))
+  expect_equal(
+    unname(confint(fit, SCALE = "natural")[9, ]),
+    tanh(atanh(rho) + stats::qnorm(c(0.025, 0.975)) * se),
+    tolerance = 1e-6
+  )
+  pb <- fit
+  pb$WORKPAR <- "PinheiroBates"
+  expect_error(confint(pb, SCALE = "natural"), "Joe")
+})
+
 test_that("ib_jacobian leaves the caller's RNG state untouched", {
   fit <- ib_small()
   withr::local_seed(1, .rng_kind = "L'Ecuyer-CMRG")

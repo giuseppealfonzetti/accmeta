@@ -224,8 +224,7 @@ joe2theta <- function(JOEPAR) {
 #' Build the `CONTROL` object passed to [fit_ib()].
 #'
 #' @param H Number of datasets simulated per iteration.
-#' @param MAX_ITER Maximum number of iterations. If `NULL`, 100, or 3 with a warning when the data
-#'   have fewer than 15 studies, where further iterations tend to overcorrect.
+#' @param MAX_ITER Maximum number of iterations. If `NULL`, 100.
 #' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
 #' @param PATIENCE Stop after this many iterations with no improvement in the
 #'   best convergence statistic (returning the best iterate seen). Ignored for
@@ -233,8 +232,10 @@ joe2theta <- function(JOEPAR) {
 #' @param TERMINATION Stopping rule, based on the IB gap \eqn{\bar g} and the
 #'   sample covariance \eqn{S} of the \eqn{H} simulated estimates:
 #'   `"mahalanobis"` (default) stops when \eqn{\bar g^\top S^{-1} \bar g <}
-#'   `PRECISION`\eqn{/H}, i.e. when the next step is within `sqrt(PRECISION)`
-#'   Monte Carlo standard deviations of the IB estimator;
+#'   `PRECISION`\eqn{(1-\hat\delta)^2/H}, where \eqn{\hat\delta} is the ratio of
+#'   successive steps in this norm, an estimate of the contraction rate, so that
+#'   the numerical error is within `sqrt(PRECISION)` Monte Carlo standard
+#'   deviations of the IB estimator; it never stops while \eqn{\hat\delta \ge 1};
 #'   `"max_iter"` runs all `MAX_ITER` iterations with no convergence or stall
 #'   stop and returns the best iterate seen. Either way, an update leaving the
 #'   box stops the IB.
