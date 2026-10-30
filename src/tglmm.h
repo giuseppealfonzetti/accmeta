@@ -30,6 +30,7 @@ Type tglmm(objective_function<Type>* obj)
   DATA_SCALAR(DEGREES);      // Wishart degrees of freedom
   DATA_SCALAR(SCALE);        // Wishart scale
   DATA_STRING(WORKPAR);      // "PinheiroBates" or "Joe"
+  DATA_IVECTOR(COHORT);      // 1 cohort, 0 case-control (no prevalence: one node in u3)
 
   // params
   PARAMETER_VECTOR(MU);      // mu_eta, mu_xi, mu_gamma
@@ -179,13 +180,16 @@ Type tglmm(objective_function<Type>* obj)
     // negative log-likelihood
     Type logsum = -INFINITY;
     int nq = ws.size();
+    int nq3 = (COHORT(i) == 1) ? nq : 1;
     for (int j1 = 0; j1 < nq; j1++) {
       for (int j2 = 0; j2 < nq; j2++) {
-        for (int j3 = 0; j3 < nq; j3++) {
+        for (int j3 = 0; j3 < nq3; j3++) {
+          Type z3 = (COHORT(i) == 1) ? Type(z(j3)) : Type(0.0);
+          Type lw3 = (COHORT(i) == 1) ? Type(log(ws[j3])) : Type(0.5) * log(Type(M_PI));
           Type addint = 0.0;
           Type zj1 = sqrt(Type(2.0)) * l11 * z(j1) + ui(0);
           Type zj2 = sqrt(Type(2.0)) * (l21 * z(j1) +  l22 * z(j2)) + ui(1);
-          Type zj3 = sqrt(Type(2.0)) * (l31 * z(j1) +  l32 * z(j2) + l33 * z(j3)) + ui(2);
+          Type zj3 = sqrt(Type(2.0)) * (l31 * z(j1) +  l32 * z(j2) + l33 * z3) + ui(2);
           Type arg1 = MU(0) + A(0) * zj1;
           Type arg2 = MU(1) + A(1) * zj1 + A(2) * zj2;
           Type arg3 = MU(2) + A(3) * zj1 + A(4) * zj2 + A(5) * zj3;
@@ -193,7 +197,7 @@ Type tglmm(objective_function<Type>* obj)
           addint += yi(1) * arg2 - di(1) * logspace_add(Type(0), arg2);
           addint += yi(2) * arg3 - di(2) * logspace_add(Type(0), arg3);
           addint += dnorm(zj1, Type(0), Type(1), true) + dnorm(zj2, Type(0), Type(1), true) +  dnorm(zj3, Type(0), Type(1), true);
-          addint += log(ws[j1]) + log(ws[j2]) + log(ws[j3]);
+          addint += log(ws[j1]) + log(ws[j2]) + lw3;
           logsum = logspace_add(logsum, addint);
         }
       }

@@ -3,46 +3,45 @@
 \name{set_meta_data}
 \alias{set_meta_data}
 \alias{print.accmeta_data}
-\title{Validate misclassification counts and pre-compute study summaries}
+\title{Build the data object}
 \usage{
-set_meta_data(MATRIX, CC = 0, VERBOSE = TRUE)
+set_meta_data(MATRIX, CC = 0, VERBOSE = TRUE, DESIGN = NULL)
 
 \method{print}{accmeta_data}(x, ...)
 }
 \arguments{
-\item{MATRIX}{An integer matrix or data frame with four columns holding the
-misclassification counts of each study. If the
-columns are named, they must be named \code{n11}, \code{n10}, \code{n01}, \code{n00}.
-If they are unnamed, that order is assumed.}
+\item{MATRIX}{Matrix or data frame of non-negative integer counts with four
+columns named \code{n11}, \code{n10}, \code{n01}, \code{n00} (taken in this order if unnamed).}
 
-\item{CC}{Non-negative continuity correction, added to each of the four cells
-of every study. Needed by \code{\link[=fit_tlmm]{fit_tlmm()}} when zero cells are observed.}
+\item{CC}{Non-negative numeric, continuity correction added to every cell.}
 
-\item{VERBOSE}{allow messages.}
+\item{VERBOSE}{Logical, print messages.}
+
+\item{DESIGN}{Optional character vector with one entry per study, \code{"cohort"}
+or \code{"case-control"}. Default all \code{"cohort"}.}
 
 \item{x}{An \code{accmeta_data} object.}
 
 \item{...}{Ignored.}
 }
 \value{
-An object of class \code{accmeta_data}, a list with components:
+Object of class \code{accmeta_data}, a list with:
 \describe{
-\item{\code{tab}}{the raw counts, columns \code{n11}, \code{n10}, \code{n01}, \code{n00}.}
-\item{\code{margins}}{the raw margins, columns \code{n1}, \code{n0}, \code{n}.}
-\item{\code{counts}}{raw binomial responses and denominators for the exact
-model, columns \code{y_eta}, \code{y_xi}, \code{y_gamma}, \code{den_eta}, \code{den_xi},
-\code{den_gamma}.}
-\item{\code{est}}{logit of \code{SE}, of \code{1 - SP} and of \code{PREV}, columns \code{eta}, \code{xi}, \code{gamma}.}
-\item{\code{wvar}}{within-study variances, columns \code{var_eta}, \code{var_xi},
-\code{var_gamma}.}
-\item{\code{rates}}{per-study accuracy, columns \code{SE}, \code{SP}, \code{PREV}.}
-\item{\code{n_studies}}{the number of studies.}
-\item{\code{CC}}{the continuity correction applied.}
+\item{\code{tab}}{numeric matrix of counts, columns \code{n11}, \code{n10}, \code{n01}, \code{n00}.}
+\item{\code{margins}}{numeric matrix, columns \code{n1}, \code{n0}, \code{n}.}
+\item{\code{counts}}{numeric matrix, columns \code{y_eta}, \code{y_xi}, \code{y_gamma},
+\code{den_eta}, \code{den_xi}, \code{den_gamma}.}
+\item{\code{est}}{numeric matrix, columns \code{eta}, \code{xi}, \code{gamma}.}
+\item{\code{wvar}}{numeric matrix, columns \code{var_eta}, \code{var_xi}, \code{var_gamma}.}
+\item{\code{rates}}{numeric matrix, columns \code{SE}, \code{SP}, \code{PREV}.}
+\item{\code{n_studies}}{integer.}
+\item{\code{CC}}{numeric.}
+\item{\code{design}}{character vector.}
 }
+The \code{gamma}, \code{var_gamma} and \code{PREV} entries are \code{NA} for case-control studies.
 }
 \description{
-Checks the four misclassification counts of each study and pre-computes study
-summaries used by \code{\link[=fit_tlmm]{fit_tlmm()}} or \code{\link[=fit_tglmm]{fit_tglmm()}}.
+Build the data object
 }
 \examples{
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)

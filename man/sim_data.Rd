@@ -4,33 +4,29 @@
 \alias{sim_data}
 \title{Simulate misclassification tables}
 \usage{
-sim_data(N_STUDIES, THETA, N_I, DF = Inf)
+sim_data(N_STUDIES, THETA, N_I, DF = Inf, N1 = NULL)
 }
 \arguments{
-\item{N_STUDIES}{Number of studies to generate. A single positive integer.}
+\item{N_STUDIES}{Positive integer, number of studies.}
 
-\item{THETA}{Numeric vector of length 9, or 12 for skew-normal random
-effects, which need the 'sn' package. See \code{\link[=theta2list]{theta2list()}}.}
+\item{THETA}{Numeric vector of length 9 (trivariate), 5 (bivariate) or 12
+(skew-normal, needs 'sn'), in the layout of \code{\link[=theta2list]{theta2list()}}.}
 
-\item{N_I}{Numeric vector of length \code{N_STUDIES} giving the total sample size
-\eqn{n_i} of each study. Entries must be positive integers.}
+\item{N_I}{Positive integer vector of length \code{N_STUDIES}, study sizes.}
 
-\item{DF}{Degrees of freedom \eqn{\nu > 2} of Student t random effects, as in
-Guolo (2023), scaled to have covariance \code{SIGMA}, i.e. scale matrix
-\eqn{(\nu - 2)\Sigma_3/\nu}. \code{Inf} gives normal random effects. Only for
-\code{THETA} of length 9.}
+\item{DF}{Numeric greater than 2, degrees of freedom of Student t random
+effects; \code{Inf} for normal. Length-9 \code{THETA} only.}
+
+\item{N1}{Optional integer vector of length \code{N_STUDIES}, number of diseased of
+case-control studies and \code{NA} for cohort studies. Required, without \code{NA}, for
+a length-5 \code{THETA}.}
 }
 \value{
-An integer matrix with \code{N_STUDIES} rows and columns \code{n11}, \code{n10},
-\code{n01}, \code{n00}, the misclassification counts of each study. Each row sums to
-the corresponding entry of \code{N_I}.
+Integer matrix with \code{N_STUDIES} rows and columns \code{n11}, \code{n10}, \code{n01},
+\code{n00}.
 }
 \description{
-Generates synthetic diagnostic accuracy data from the exact TGLMM model. For each
-study a trivariate normal random effect \eqn{(\eta_i, \xi_i, \gamma_i)} is
-drawn, followed by nested binomial draws: the diseased total from
-\eqn{\gamma_i}, the true positives from \eqn{\eta_i}, and the false positives
-from \eqn{\xi_i}.
+Simulate misclassification tables
 }
 \examples{
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)

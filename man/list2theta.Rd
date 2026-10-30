@@ -2,23 +2,20 @@
 % Please edit documentation in R/utils.R
 \name{list2theta}
 \alias{list2theta}
-\title{Pack the working parameter vector}
+\title{Pack the parameter vector}
 \usage{
 list2theta(LIST)
 }
 \arguments{
-\item{LIST}{A list with components \code{MU}, a numeric vector of length 3, and
-\code{SIGMA}, a 3x3 symmetric positive-definite matrix. Optionally \code{SKEW}, the
-length-3 marginal skewness of skew-normal random effects, which must be
-admissible for \code{SIGMA}.}
+\item{LIST}{List with \code{MU} (numeric, length 3 or 2), \code{SIGMA} (symmetric
+positive-definite matrix, 3 x 3 or 2 x 2) and optionally \code{SKEW} (numeric,
+length 3).}
 }
 \value{
-A numeric vector of length 9, in the layout documented for
-\code{\link[=theta2list]{theta2list()}}.
+Numeric vector of length 9, 5 or 12, in the layout of \code{\link[=theta2list]{theta2list()}}.
 }
 \description{
-Inverse of \code{\link[=theta2list]{theta2list()}}: packs the random-effects mean vector and covariance
-matrix into the working parameter vector \code{THETA}.
+Pack the parameter vector
 }
 \examples{
 nm <- c("eta", "xi", "gamma")

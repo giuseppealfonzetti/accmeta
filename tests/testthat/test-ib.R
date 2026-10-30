@@ -31,7 +31,8 @@ test_that("the result carries its path and diagnostics", {
   expect_named(f, c(
     "THETA", "PI_HAT", "N_ITER", "CONVERGED", "STOP", "RESIDUAL",
     "PROGRESS", "THRESHOLD", "PATH", "FAIL", "DEGEN", "RATIO",
-    "GAP", "SE", "SEEDS", "PRIOR", "CONTROL", "WORKPAR", "DATA"
+    "GAP", "SE", "SEEDS", "PRIOR", "CONTROL", "WORKPAR", "DATA", "MODEL",
+    "ESTIMATOR"
   ))
   expect_length(f$THETA, 9)
   expect_identical(nrow(f$PATH), f$N_ITER + 1L)
@@ -112,8 +113,8 @@ test_that("a failed fit is redrawn, not dropped", {
   set.seed(1)
   d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
   tries <- 0
-  real <- fit_tlmm
-  local_mocked_bindings(fit_tlmm = function(...) {
+  real <- fit_mle
+  local_mocked_bindings(fit_mle = function(...) {
     tries <<- tries + 1
     if (tries %% 3 == 0) stop("no fit")
     real(...)

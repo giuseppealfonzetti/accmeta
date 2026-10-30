@@ -2,18 +2,18 @@
 % Please edit documentation in R/utils.R
 \name{theta2dp}
 \alias{theta2dp}
-\title{Direct parameters of skew-normal random effects}
+\title{Skew-normal direct parameters}
 \usage{
 theta2dp(THETA)
 }
 \arguments{
-\item{THETA}{Numeric vector of length 9 or 12, in the layout documented for
+\item{THETA}{Numeric vector of length 9 or 12, in the layout of
 \code{\link[=theta2list]{theta2list()}}.}
 }
 \value{
-A list with \code{xi}, \code{Omega} and \code{alpha}, the direct parameters of
-\code{\link[sn:dmsn]{sn::dmsn()}}; \code{alpha} is zero for length 9.
+List with \code{xi}, \code{Omega} and \code{alpha}, as used by \code{\link[sn:dmsn]{sn::dmsn()}}; \code{alpha}
+is zero for length 9.
 }
 \description{
-Direct parameters of skew-normal random effects
+Skew-normal direct parameters
 }

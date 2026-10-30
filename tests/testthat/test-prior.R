@@ -2,8 +2,9 @@ test_that("set_prior stores what it is given", {
   p <- set_prior()
   expect_s3_class(p, "accmeta_prior")
   expect_named(p, c("DEGREES", "SCALE"))
-  expect_identical(p$DEGREES, 5)
-  expect_identical(formals(set_prior)$DEGREES, 5)
+  expect_null(p$DEGREES)
+  expect_null(formals(set_prior)$DEGREES)
+  expect_identical(set_prior(3)$DEGREES, 3)
   expect_identical(p$SCALE, Inf)
   expect_identical(set_prior(4)$DEGREES, 4)
   expect_identical(set_prior(DEGREES = 6)$DEGREES, 6)
@@ -11,7 +12,7 @@ test_that("set_prior stores what it is given", {
 })
 
 test_that("set_prior rejects impossible values", {
-  expect_error(set_prior(DEGREES = 3), ">= 4")
+  expect_error(set_prior(DEGREES = 2), ">= 3")
   expect_error(set_prior(DEGREES = 4.5), "round")
   expect_error(set_prior(DEGREES = c(4, 5)), "length")
   expect_error(set_prior(SCALE = 0), "> 0")

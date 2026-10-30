@@ -1,21 +1,12 @@
-#' Unpack the working parameter vector
+#' Unpack the parameter vector
 #'
-#' Maps the working parameter vector `THETA` onto its interpretable
-#' components: the random-effects mean vector and covariance matrix.
+#' @param THETA Numeric vector of length 9 (means of `eta`, `xi`, `gamma`, then
+#'   log-Cholesky entries `log L11`, `L21`, `log L22`, `L31`, `L32`, `log L33`),
+#'   5 (means of `eta`, `xi`, then `log L11`, `L21`, `log L22`) or 12 (skew-normal:
+#'   the length-9 layout plus three slants).
 #'
-#' @param THETA Numeric vector of length 9. Entries 1 to 3 are the random-effects
-#'   means \eqn{(\bar\eta, \bar\xi, \bar\gamma)}. Entries 4 to 9 are the
-#'   log-Cholesky factor of \eqn{\Sigma_3} in row-major lower-triangular order
-#'   \eqn{(log(L_{11}), L_{21}, log(L_{22}), L_{31}, L_{32}, log(L_{33})}).
-#'   Length 12 for skew-normal random effects, in the original parameterisation
-#'   of [sn::dp2op()]: entries 1 to 3 are then the location, 4 to 9 the
-#'   log-Cholesky factor of \eqn{\Psi} and 10 to 12 the slant \eqn{\lambda};
-#'   the list then reports the mean, the covariance and `SKEW`, the marginal
-#'   skewness of each component.
-#'
-#' @return A list with two components: `MU`, the length-3 mean vector, and
-#'   `SIGMA`, the 3x3 positive-definite covariance matrix. Both are named after
-#'   the logit-scale components `eta`, `xi` and `gamma`.
+#' @return List with `MU` (named numeric, length 3 or 2) and `SIGMA` (named
+#'   covariance matrix); for length 12 also `SKEW` (named numeric, length 3).
 #'
 #' @seealso [list2theta()] for the inverse map.
 #'
@@ -24,7 +15,11 @@
 #'
 #' @export
 theta2list <- function(THETA) {
-  stopifnot(is.numeric(THETA), length(THETA) %in% c(9, 12))
+  stopifnot(is.numeric(THETA), length(THETA) %in% c(5, 9, 12))
+  if (length(THETA) == 5) {
+    li <- theta2list(embed(THETA, "PinheiroBates"))
+    return(list(MU = li$MU[1:2], SIGMA = li$SIGMA[1:2, 1:2]))
+  }
   nm <- c("eta", "xi", "gamma")
   L <- matrix(0, 3, 3)
   L[lower.tri(L, diag = TRUE)] <- THETA[c(4, 5, 7, 6, 8, 9)]
@@ -47,18 +42,13 @@ theta2list <- function(THETA) {
 }
 
 
-#' Pack the working parameter vector
+#' Pack the parameter vector
 #'
-#' Inverse of [theta2list()]: packs the random-effects mean vector and covariance
-#' matrix into the working parameter vector `THETA`.
+#' @param LIST List with `MU` (numeric, length 3 or 2), `SIGMA` (symmetric
+#'   positive-definite matrix, 3 x 3 or 2 x 2) and optionally `SKEW` (numeric,
+#'   length 3).
 #'
-#' @param LIST A list with components `MU`, a numeric vector of length 3, and
-#'   `SIGMA`, a 3x3 symmetric positive-definite matrix. Optionally `SKEW`, the
-#'   length-3 marginal skewness of skew-normal random effects, which must be
-#'   admissible for `SIGMA`.
-#'
-#' @return A numeric vector of length 9, in the layout documented for
-#'   [theta2list()].
+#' @return Numeric vector of length 9, 5 or 12, in the layout of [theta2list()].
 #'
 #' @seealso [theta2list()] for the inverse map.
 #'
@@ -75,6 +65,13 @@ theta2list <- function(THETA) {
 #'
 #' @export
 list2theta <- function(LIST) {
+  if (length(LIST$MU) == 2 && is.null(LIST$SKEW)) {
+    stopifnot(identical(dim(LIST$SIGMA), c(2L, 2L)), isSymmetric(LIST$SIGMA))
+    s <- diag(3)
+    s[1:2, 1:2] <- LIST$SIGMA
+    out <- list2theta(list(MU = c(LIST$MU, 0), SIGMA = s))
+    return(project(out, "PinheiroBates"))
+  }
   stopifnot(
     is.numeric(LIST$MU),
     length(LIST$MU) == 3,
@@ -118,13 +115,13 @@ skew_t <- function(SIGMA, SKEW) {
   (1 - 2 / pi) * sum(delta * solve(SIGMA, delta))
 }
 
-#' Direct parameters of skew-normal random effects
+#' Skew-normal direct parameters
 #'
-#' @param THETA Numeric vector of length 9 or 12, in the layout documented for
+#' @param THETA Numeric vector of length 9 or 12, in the layout of
 #'   [theta2list()].
 #'
-#' @return A list with `xi`, `Omega` and `alpha`, the direct parameters of
-#'   [sn::dmsn()]; `alpha` is zero for length 9.
+#' @return List with `xi`, `Omega` and `alpha`, as used by [sn::dmsn()]; `alpha`
+#'   is zero for length 9.
 #'
 #' @export
 theta2dp <- function(THETA) {
@@ -146,17 +143,12 @@ theta2dp <- function(THETA) {
 
 #' Set the prior on the random-effects covariance
 #'
-#' Control the prior object for \eqn{\Sigma_3 \sim W(\nu, A I_3)} to be passed to [fit_tlmm()] or [fit_tglmm()] through the `PRIOR` argument. The prior is
-#' \eqn{\Sigma_3 \sim W(\nu, A I_3)}. Setting \eqn{\nu=4} and \eqn{A=Inf} correspond to maximum likelihood estimation.
+#' @param DEGREES Integer, at least 3, Wishart degrees of freedom, or `NULL` for
+#'   the number of random effects plus 2.
+#' @param SCALE Positive numeric, Wishart scale. `Inf` with `DEGREES` equal to the
+#'   number of random effects plus 1 gives maximum likelihood.
 #'
-#' @param DEGREES Degrees of freedom \eqn{\nu} of the Wishart prior. The default
-#'   keeps the covariance off the boundary of the parameter space, which the
-#'   unpenalised fit reaches on small or sparse data. Use `set_prior(4)` for the
-#'   flat prior.
-#' @param SCALE Scale \eqn{A}. Represents a soft ceiling on the variance scale.
-#'
-#' @return An object of class `accmeta_prior`: a list with `DEGREES` and
-#'   `SCALE`, held as given and passed to the template unchanged.
+#' @return Object of class `accmeta_prior`, a list with `DEGREES` and `SCALE`.
 #'
 #' @examples
 #' set_prior()
@@ -164,12 +156,16 @@ theta2dp <- function(THETA) {
 #' set_prior(DEGREES = 5, SCALE = 100)
 #'
 #' @export
-set_prior <- function(DEGREES = 5, SCALE = Inf) {
+set_prior <- function(DEGREES = NULL, SCALE = 100) {
+  if (!is.null(DEGREES)) {
+    stopifnot(
+      is.numeric(DEGREES),
+      length(DEGREES) == 1,
+      DEGREES >= 3,
+      DEGREES == round(DEGREES)
+    )
+  }
   stopifnot(
-    is.numeric(DEGREES),
-    length(DEGREES) == 1,
-    DEGREES >= 4,
-    DEGREES == round(DEGREES),
     is.numeric(SCALE),
     length(SCALE) == 1,
     SCALE > 0
@@ -179,22 +175,21 @@ set_prior <- function(DEGREES = 5, SCALE = Inf) {
   return(out)
 }
 
-#' Map the working vector to Joe's unconstrained parameters
+#' Map the parameter vector to Joe coordinates
 #'
-#' @param THETA Numeric vector of length 9 or 12 (see [theta2list()]);
-#'   entries 10 to 12 are copied verbatim.
+#' @param THETA Numeric vector of length 9, 5 or 12, in the layout of
+#'   [theta2list()].
 #'
-#' @return A numeric vector of length 9:
-#'   entries 1 to 3 the means (copied verbatim), 4 to 6 the log marginal SDs
-#'   \eqn{\log\sqrt{\mathrm{diag}\,\Sigma_3}}, 7 to 9 the Fisher-z values
-#'   \eqn{(\mathrm{atanh}\,\rho_{12}, \mathrm{atanh}\,\rho_{13},
-#'   \mathrm{atanh}\,\rho_{23\mid1})}. Correlations are clamped to
-#'   \eqn{\pm(1 - 10^{-10})} before `atanh`, so `joe2theta(theta2joe())` is
-#'   exact only for interior values.
+#' @return Numeric vector of the same length: means, log standard deviations,
+#'   Fisher-z correlations, then any skew entries unchanged.
 #'
 #' @seealso [joe2theta()] for the inverse map.
+#'
 #' @export
 theta2joe <- function(THETA) {
+  if (length(THETA) == 5) {
+    return(project(theta2joe(embed(THETA, "PinheiroBates")), "Joe"))
+  }
   li <- theta2list(THETA[1:9])
   s <- sqrt(diag(li$SIGMA))
   cormat <- li$SIGMA / tcrossprod(s)
@@ -204,17 +199,21 @@ theta2joe <- function(THETA) {
   unname(c(li$MU, log(s), atanh(r), THETA[-(1:9)]))
 }
 
-#' Map Joe's unconstrained parameters back to the working vector
+#' Map Joe coordinates to the parameter vector
 #'
-#' @param JOEPAR Numeric vector of length 9 or 12 in the layout returned by
+#' @param JOEPAR Numeric vector of length 9, 5 or 12, in the layout returned by
 #'   [theta2joe()].
 #'
-#' @return A numeric vector of length 9 (the working vector `THETA`).
+#' @return Numeric vector of the same length, in the layout of [theta2list()].
 #'
 #' @seealso [theta2joe()] for the inverse map.
+#'
 #' @export
 joe2theta <- function(JOEPAR) {
-  stopifnot(is.numeric(JOEPAR), length(JOEPAR) %in% c(9, 12))
+  stopifnot(is.numeric(JOEPAR), length(JOEPAR) %in% c(5, 9, 12))
+  if (length(JOEPAR) == 5) {
+    return(project(joe2theta(embed(JOEPAR, "Joe")), "PinheiroBates"))
+  }
   s <- exp(JOEPAR[4:6])
   z <- tanh(JOEPAR[7:9])
   r12 <- z[1]
@@ -229,45 +228,27 @@ joe2theta <- function(JOEPAR) {
 }
 
 
-#' Set the control parameters for the iterative bootstrap
+#' Set the iterative bootstrap options
 #'
-#' Build the `CONTROL` object passed to [fit_ib()].
+#' @param H Integer greater than 9, simulated datasets per iteration.
+#' @param MAX_ITER Positive integer, maximum iterations, or `NULL` for 100.
+#' @param STEP Numeric in (0, 1], damping factor.
+#' @param PATIENCE Positive integer, iterations without improvement before
+#'   stopping.
+#' @param TERMINATION `"mahalanobis"` (convergence test) or `"max_iter"` (run
+#'   all iterations).
+#' @param PRECISION Positive numeric, tolerance of the `"mahalanobis"` test.
+#' @param NCORES Positive integer, parallel workers; `1` runs serially.
+#' @param VCOV_H Integer greater than 18, simulated datasets for the Jacobian.
+#' @param VCOV_N_NODES Integer, at least 2, quadrature nodes per dimension for
+#'   the Jacobian.
+#' @param VCOV_N_ITER Positive integer, Newton steps for the Jacobian.
+#' @param BOX_SD Numeric vector of length 2, lower and upper bound of the
+#'   standard deviations.
+#' @param BOX_COR Numeric in (0, 1), bound on the absolute correlations.
+#' @param BOX_MU Positive numeric, bound on the absolute means.
 #'
-#' @param H Number of datasets simulated per iteration.
-#' @param MAX_ITER Maximum number of iterations. If `NULL`, 100.
-#' @param STEP Damping factor \eqn{\gamma \in (0, 1]}.
-#' @param PATIENCE Stop after this many iterations with no improvement in the
-#'   best convergence statistic (returning the best iterate seen). Ignored for
-#'   `"max_iter"`.
-#' @param TERMINATION Stopping rule, based on the IB gap \eqn{\bar g} and the
-#'   sample covariance \eqn{S} of the \eqn{H} simulated estimates:
-#'   `"mahalanobis"` (default) stops when \eqn{\bar g^\top S^{-1} \bar g <}
-#'   `PRECISION`\eqn{(1-\hat\delta)^2/H}, where \eqn{\hat\delta} is the ratio of
-#'   successive steps in this norm, an estimate of the contraction rate, so that
-#'   the numerical error is within `sqrt(PRECISION)` Monte Carlo standard
-#'   deviations of the IB estimator; it never stops while \eqn{\hat\delta \ge 1};
-#'   `"max_iter"` runs all `MAX_ITER` iterations with no convergence or stall
-#'   stop and returns the best iterate seen. Either way, an update leaving the
-#'   box stops the IB.
-#' @param PRECISION Squared tolerance of `"mahalanobis"`, in units of the Monte
-#'   Carlo variance \eqn{1/H}.
-#' @param NCORES Number of cores to be passed to [mirai::daemons()]. Default `1` runs serially.
-#'   Values `> 1` for parallel computations across the H simulated datasets at each iteration.
-#'   Also used for the Jacobian behind [vcov()][vcov.accmeta_ib].
-#' @param VCOV_H Number of datasets simulated at the IB estimate to compute the Jacobian behind
-#'   [vcov()][vcov.accmeta_ib].
-#' @param VCOV_N_NODES Number of quadrature nodes per dimension of the TGLMM score used for the
-#'   Jacobian. See [fit_tglmm()].
-#' @param VCOV_N_ITER Number of Newton steps locating the integrand mode in the TGLMM score used
-#'   for the Jacobian. See [fit_tglmm()].
-#' @param BOX_SD Range of the random-effect standard deviations; an IB update leaving it stops
-#'   the IB. With `WORKPAR = "PinheiroBates"`, range of the diagonal of the Cholesky factor.
-#' @param BOX_COR Bound on the absolute partial correlations; an IB update leaving it stops the
-#'   IB. With `WORKPAR = "PinheiroBates"`, the off-diagonal Cholesky entries are bounded by
-#'   `BOX_SD[2]`.
-#' @param BOX_MU Bound on the absolute mean logits; an IB update leaving it stops the IB.
-#'
-#' @return An object of class `accmeta_ib_control` to be passed to [fit_ib()] via `CONTROL` argumnet.
+#' @return Object of class `accmeta_ib_control`.
 #'
 #' @seealso [fit_ib()].
 #'
@@ -350,6 +331,44 @@ set_ib_control <- function(
   return(out)
 }
 
+free_idx <- function(WORKPAR) {
+  if (WORKPAR == "Joe") c(1, 2, 4, 5, 7) else c(1, 2, 4, 5, 6)
+}
+
+embed <- function(X, WORKPAR) {
+  replace(numeric(9), free_idx(WORKPAR), X)
+}
+
+project <- function(X, WORKPAR) {
+  X[free_idx(WORKPAR)]
+}
+
+theta_model <- function(THETA) {
+  if (length(THETA) == 5) "bivariate" else "trivariate"
+}
+
+flat_prior <- function(THETA) {
+  set_prior(if (length(THETA) == 5) 3 else 4, Inf)
+}
+
+resolve_prior <- function(PRIOR, P) {
+  stopifnot(inherits(PRIOR, "accmeta_prior"))
+  if (is.null(PRIOR$DEGREES)) {
+    PRIOR$DEGREES <- P + 2
+  }
+  if (PRIOR$DEGREES < P + 1) {
+    stop(
+      "DEGREES must be at least ",
+      P + 1,
+      " for ",
+      P,
+      " random effects.",
+      call. = FALSE
+    )
+  }
+  PRIOR
+}
+
 make_obj <- function(
   DATA,
   THETA,
@@ -359,14 +378,40 @@ make_obj <- function(
   N_NODES = 15L,
   N_ITER = 10L
 ) {
+  biv <- length(THETA) == 5
   work <- ib_to_work(THETA, WORKPAR)
+  map <- list()
+  if (biv) {
+    work <- embed(work, WORKPAR)
+    free <- seq_len(9) %in% free_idx(WORKPAR)
+    map <- list(
+      MU = factor(c(1, 2, NA)),
+      ALPHA = factor(ifelse(free[4:9], seq_len(6), NA))
+    )
+    DATA$counts[, c("y_gamma", "den_gamma")] <- 0
+    DATA$est[, "gamma"] <- NA
+    DATA$wvar[, "var_gamma"] <- NA
+  }
+  cohort <- if (biv || is.null(DATA$design)) {
+    rep(as.integer(!biv), DATA$n_studies)
+  } else {
+    as.integer(DATA$design == "cohort")
+  }
   prior <- list(
-    DEGREES = as.numeric(PRIOR$DEGREES),
+    DEGREES = as.numeric(PRIOR$DEGREES) + biv,
     SCALE = as.numeric(PRIOR$SCALE),
-    WORKPAR = WORKPAR
+    WORKPAR = WORKPAR,
+    COHORT = cohort
   )
   data <- if (MODEL == "tlmm") {
-    c(list(MODEL = "tlmm", EST = DATA$est, WVAR = DATA$wvar), prior)
+    c(
+      list(
+        MODEL = "tlmm",
+        EST = replace(DATA$est, is.na(DATA$est), 0),
+        WVAR = replace(DATA$wvar, is.na(DATA$wvar), 0)
+      ),
+      prior
+    )
   } else {
     gh <- statmod::gauss.quad(N_NODES, "hermite")
     c(
@@ -385,6 +430,7 @@ make_obj <- function(
   TMB::MakeADFun(
     data = data,
     parameters = list(MU = work[1:3], ALPHA = work[4:9]),
+    map = map,
     DLL = "accmeta",
     silent = TRUE
   )

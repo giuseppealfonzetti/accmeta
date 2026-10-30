@@ -10,13 +10,15 @@ experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](h
 <!-- badges: end -->
 
 Penalised estimation of meta-analysis models for diagnostic accuracy, in
-terms of sensitivity, specificity and prevalence. Three estimators are
-available: a trivariate linear mixed model (TLMM) using a within-study
-normal approximation, the trivariate generalized linear mixed model
-(TGLMM), and an iterative bootstrap (IB) that corrects the bias of the
-TLMM by simulating from the TGLMM. IB fits come with a covariance matrix
-and Wald or basic confidence intervals, built from a simulated Jacobian
-of the TGLMM score.
+terms of sensitivity and specificity (bivariate model) or sensitivity,
+specificity and prevalence (trivariate model), combining cohort and
+case-control studies. Three estimators are available: a linear mixed
+model (LMM) using a within-study normal approximation, the generalized
+linear mixed model (GLMM), and an iterative bootstrap (IB) that corrects
+the bias of the LMM by simulating from the GLMM. All are fitted through
+`fit_meta_model()`, with the estimator’s options set by `set_control()`.
+IB fits come with a covariance matrix and Wald or basic confidence
+intervals, built from a simulated Jacobian of the TGLMM score.
 
 ## Installation
 
@@ -94,9 +96,9 @@ Now we can fit the models. Note that the TGLMM can be directly fitted on
 the original data.
 
 ``` r
-tlmm <- fit_tlmm(d_cc)
-tglmm <- fit_tglmm(d)
-ib <- fit_ib(d_cc)
+tlmm <- fit_meta_model(d_cc, MODEL = "trivariate", ESTIMATOR = "lmm")
+tglmm <- fit_meta_model(d, MODEL = "trivariate", ESTIMATOR = "glmm")
+ib <- fit_meta_model(d_cc, MODEL = "trivariate", ESTIMATOR = "ib")
 ib
 #> <accmeta_ib> 6 iterations, stopped on converged 
 #>    SE    SP  PREV 
@@ -123,9 +125,9 @@ coef(tglmm)
 #> 
 #> $SIGMA
 #>             eta        xi     gamma
-#> eta   0.8546781 0.3150288 0.5893510
+#> eta   0.8546781 0.3150288 0.5893511
 #> xi    0.3150288 0.3717160 0.1852082
-#> gamma 0.5893510 0.1852082 0.6539028
+#> gamma 0.5893511 0.1852082 0.6539028
 coef(ib)
 #> $MU
 #>        eta         xi      gamma 
@@ -139,10 +141,16 @@ coef(ib)
 ```
 
 All models are estimated, by default, with the recommended Wishart
-prior. You can change it via
+prior, whose `DEGREES = NULL` means $p + 2$ for $p$ random effects. You
+can change it via
 
 ``` r
-tglmm_mle <- fit_tglmm(d, PRIOR = set_prior(DEGREES = 4, SCALE = Inf))
+tglmm_mle <- fit_meta_model(
+  d,
+  MODEL = "trivariate",
+  ESTIMATOR = "glmm",
+  PRIOR = set_prior(DEGREES = 4, SCALE = Inf)
+)
 coef(tglmm_mle)
 #> $MU
 #>        eta         xi      gamma 
@@ -154,19 +162,24 @@ coef(tglmm_mle)
 #> xi    0.2841822 0.3081583 0.1815984
 #> gamma 0.5459757 0.1815984 0.5999210
 min(eigen(coef(tglmm_mle)$SIGMA)$values)
-#> [1] 0.03578618
+#> [1] 0.03578619
 min(eigen(coef(tglmm)$SIGMA)$values)
 #> [1] 0.1286891
 ```
 
 ## Inference for the IB estimate
 
-With `VCOV = TRUE`, `fit_ib()` also computes the Jacobian at the
-estimate. `NCORES` spreads both the simulated fits of each iteration and
-the Jacobian draws for parallel computations
+With `VCOV = TRUE` in `set_control()`, the IB also computes the Jacobian
+at the estimate. `NCORES` spreads both the simulated fits of each
+iteration and the Jacobian draws for parallel computations
 
 ``` r
-ib <- fit_ib(d_cc, VCOV = TRUE, CONTROL = set_ib_control(NCORES = 4))
+ib <- fit_meta_model(
+  d_cc,
+  MODEL = "trivariate",
+  ESTIMATOR = "ib",
+  CONTROL = set_control("ib", VCOV = TRUE, NCORES = 4)
+)
 ```
 
 `update(ib, VCOV = TRUE)` adds the Jacobian to an existing fit, using

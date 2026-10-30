@@ -2,25 +2,20 @@
 % Please edit documentation in R/utils.R
 \name{theta2joe}
 \alias{theta2joe}
-\title{Map the working vector to Joe's unconstrained parameters}
+\title{Map the parameter vector to Joe coordinates}
 \usage{
 theta2joe(THETA)
 }
 \arguments{
-\item{THETA}{Numeric vector of length 9 or 12 (see \code{\link[=theta2list]{theta2list()}});
-entries 10 to 12 are copied verbatim.}
+\item{THETA}{Numeric vector of length 9, 5 or 12, in the layout of
+\code{\link[=theta2list]{theta2list()}}.}
 }
 \value{
-A numeric vector of length 9:
-entries 1 to 3 the means (copied verbatim), 4 to 6 the log marginal SDs
-\eqn{\log\sqrt{\mathrm{diag}\,\Sigma_3}}, 7 to 9 the Fisher-z values
-\eqn{(\mathrm{atanh}\,\rho_{12}, \mathrm{atanh}\,\rho_{13},
-  \mathrm{atanh}\,\rho_{23\mid1})}. Correlations are clamped to
-\eqn{\pm(1 - 10^{-10})} before \code{atanh}, so \code{joe2theta(theta2joe())} is
-exact only for interior values.
+Numeric vector of the same length: means, log standard deviations,
+Fisher-z correlations, then any skew entries unchanged.
 }
 \description{
-Map the working vector to Joe's unconstrained parameters
+Map the parameter vector to Joe coordinates
 }
 \seealso{
 \code{\link[=joe2theta]{joe2theta()}} for the inverse map.

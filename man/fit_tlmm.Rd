@@ -2,7 +2,7 @@
 % Please edit documentation in R/tlmm.R
 \name{fit_tlmm}
 \alias{fit_tlmm}
-\title{Fit the asymptotic normal approximation model}
+\title{Fit the trivariate linear mixed model}
 \usage{
 fit_tlmm(
   DATA,
@@ -13,32 +13,23 @@ fit_tlmm(
 )
 }
 \arguments{
-\item{DATA}{An \code{accmeta_data} object, as returned by \code{\link[=set_meta_data]{set_meta_data()}}.}
+\item{DATA}{An \code{accmeta_data} object from \code{\link[=set_meta_data]{set_meta_data()}} with finite \code{est}.}
 
-\item{THETA_START}{Numeric vector of length 9 giving the starting value. If
-\code{NULL}, \code{\link[=init_theta]{init_theta()}} is used.}
+\item{THETA_START}{Numeric vector of length 9, or \code{NULL} for \code{\link[=init_theta]{init_theta()}}.}
 
-\item{PRIOR}{Prior on random effects covariance matrix, as returned by
-\code{\link[=set_prior]{set_prior()}}. Under any prior but the flat one, \code{NLL} is a penalised
-objective rather than a log-likelihood.}
+\item{PRIOR}{An \code{accmeta_prior} object from \code{\link[=set_prior]{set_prior()}}.}
 
-\item{CONTROL}{List of control parameters passed to \code{\link[ucminf:ucminf]{ucminf::ucminf()}}; see
-its documentation for the accepted entries.}
+\item{CONTROL}{List passed to \code{\link[ucminf:ucminf]{ucminf::ucminf()}}.}
 
-\item{WORKPAR}{Coordinates the optimiser works in for the covariance:
-\code{"PinheiroBates"} (log-Cholesky, default) or \code{"Joe"} (log standard
-deviations and Fisher-z partial correlations, see \code{\link[=theta2joe]{theta2joe()}}).}
+\item{WORKPAR}{\code{"PinheiroBates"} or \code{"Joe"}, covariance coordinates.}
 }
 \value{
-A list with components \code{THETA}, the fitted parameter vector in the
-layout documented for \code{\link[=theta2list]{theta2list()}}; \code{CONVERGENCE}, the optimiser
-convergence code; \code{NLL}, the negative log-likelihood at the optimum;
-\code{OBJ}, the TMB object, retained for \code{\link[TMB:sdreport]{TMB::sdreport()}}; \code{PRIOR}, the prior
-used; and \code{DATA} and \code{WORKPAR}, the inputs, retained for \link[=vcov.accmeta_fit]{vcov()}.
+Object of class \code{accmeta_tlmm}, a list with \code{THETA} (numeric, length
+9), \code{CONVERGENCE} (integer), \code{NLL} (numeric), \code{OBJ} (TMB object), \code{PRIOR},
+\code{DATA}, \code{WORKPAR}, \code{MODEL} and \code{ESTIMATOR} (character).
 }
 \description{
-Trivariate linear mixed model. A within-study normal approximation
-makes the likelihood available in closed form.
+Fit the trivariate linear mixed model
 }
 \examples{
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)

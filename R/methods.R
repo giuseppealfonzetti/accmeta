@@ -1,5 +1,3 @@
-#' Print method for `accmeta_data` objects
-#'
 #' @param x An `accmeta_data` object.
 #' @param ... Ignored.
 #'
@@ -16,21 +14,22 @@ print.accmeta_data <- function(x, ...) {
   )
   s <- cbind(x$rates, n = x$margins[, "n"])
   print(apply(s, 2, function(z) {
-    c(min = min(z), median = stats::median(z), max = max(z))
+    c(min = min(z, na.rm = TRUE), median = stats::median(z, na.rm = TRUE), max = max(z, na.rm = TRUE))
   }))
   invisible(x)
 }
 
 
-#' Extract estimated parameters
+#' Methods for fitted objects
 #'
-#' Extract random-effects mean vector and covariance matrix.
-#'
-#' @param object A fitted object, as returned by [fit_tlmm()], [fit_tglmm()] or
-#'   [fit_ib()].
+#' @param object A fitted object from [fit_meta_model()], [fit_tlmm()],
+#'   [fit_tglmm()] or [fit_ib()].
 #' @param ... Ignored.
 #'
-#' @return A list with `MU` and `SIGMA`, named as documented for [theta2list()].
+#' @return `coef()`: list with `MU` (named numeric, length 3 or 2) and `SIGMA`
+#'   (named covariance matrix). `vcov()`: named numeric matrix, one row and column
+#'   per parameter. `confint()`: numeric matrix with one row per parameter and two
+#'   columns. `print()`: `x`, invisibly.
 #'
 #' @examples
 #' th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
@@ -61,14 +60,9 @@ print.accmeta_fit <- function(x, ...) {
     "\n"
   )
   mu <- coef(x)$MU
-  print(round(
-    c(
-      SE = stats::plogis(mu[[1]]),
-      SP = 1 - stats::plogis(mu[[2]]),
-      PREV = stats::plogis(mu[[3]])
-    ),
-    3
-  ))
+  rates <- stats::plogis(unname(c(mu[1], -mu[2], mu[3])))
+  names(rates) <- c("SE", "SP", "PREV")
+  print(round(rates[seq_along(mu)], 3))
   invisible(x)
 }
 
@@ -85,37 +79,28 @@ print.accmeta_ib <- function(x, ...) {
     "\n"
   )
   mu <- coef(x)$MU
-  print(round(
-    c(
-      SE = stats::plogis(mu[[1]]),
-      SP = 1 - stats::plogis(mu[[2]]),
-      PREV = stats::plogis(mu[[3]])
-    ),
-    3
-  ))
+  rates <- stats::plogis(unname(c(mu[1], -mu[2], mu[3])))
+  names(rates) <- c("SE", "SP", "PREV")
+  print(round(rates[seq_along(mu)], 3))
   invisible(x)
 }
 
 
 #' Inference for IB fits
 #'
-#' Covariance matrix and confidence intervals for a [fit_ib()] estimate.
-#'
-#' @param object An `accmeta_ib` object, as returned by [fit_ib()].
-#' @param VCOV If `TRUE`, computes and stores the Jacobian; if `FALSE`, drops
-#'   it. The IB is not refitted.
+#' @param object An `accmeta_ib` object; `vcov()` and `confint()` need its
+#'   Jacobian.
+#' @param VCOV Logical, add (`TRUE`) or drop (`FALSE`) the Jacobian.
 #' @param METHOD `"wald"` or `"basic"`.
-#' @param SCALE `"working"` for intervals in the coordinates of `WORKPAR`,
-#'   `"natural"` for the means, standard deviations and correlations, or
-#'   `"reporting"`, as `"natural"` with sensitivity, specificity and prevalence
-#'   in place of the means.
-#' @param parm Parameters to report, by name or position. All by default.
-#' @param level Confidence level.
+#' @param SCALE `"working"`, `"natural"` or `"reporting"`; the last two need
+#'   `WORKPAR = "Joe"`.
+#' @param parm Character or integer vector, parameters to report. All by default.
+#' @param level Numeric in (0, 1), confidence level.
 #' @param ... Ignored by `vcov()` and `confint()`; not allowed by `update()`.
 #'
-#' @return `update()` returns the fit with its Jacobian added or removed.
-#'   `vcov()` returns a named 9x9 matrix. `confint()` returns a matrix with one
-#'   row per parameter and the lower and upper limits as columns.
+#' @return `vcov()`: named numeric matrix, one row and column per parameter.
+#'   `confint()`: numeric matrix with one row per parameter and two columns.
+#'   `update()`: the `accmeta_ib` object.
 #'
 #' @examples
 #' \dontrun{
@@ -140,7 +125,7 @@ vcov.accmeta_ib <- function(object, ...) {
   }
   j_inv <- solve(jac$J)
   out <- (1 + 1 / object$CONTROL$H) * j_inv %*% jac$V %*% t(j_inv)
-  nm <- ib_work_names(object$WORKPAR)
+  nm <- ib_work_names(object$WORKPAR, length(object$THETA))
   dimnames(out) <- list(nm, nm)
   out
 }
@@ -191,13 +176,10 @@ confint.accmeta_ib <- function(
 }
 
 
-#' @param TYPE `"sandwich"` or `"hessian"` .
-#' @param SCALE `"working"` for intervals in the coordinates of the fit's
-#'   `WORKPAR`, `"natural"` for the means, standard deviations and
-#'   correlations, or `"reporting"`, as `"natural"` with sensitivity,
-#'   specificity and prevalence in place of the means.
-#' @param parm Parameters to report, by name or position. All by default.
-#' @param level Confidence level.
+#' @param TYPE `"sandwich"` or `"hessian"`.
+#' @param SCALE `"working"`, `"natural"` or `"reporting"`.
+#' @param parm Character or integer vector, parameters to report. All by default.
+#' @param level Numeric in (0, 1), confidence level.
 #'
 #' @rdname coef.accmeta_fit
 #' @importFrom stats vcov
@@ -232,7 +214,7 @@ confint.accmeta_fit <- function(
 
 
 fit_vcov <- function(FIT, TYPE, WORKPAR) {
-  model <- if (inherits(FIT, "accmeta_tlmm")) "tlmm" else "tglmm"
+  model <- if (identical(FIT$ESTIMATOR, "glmm")) "tglmm" else "tlmm"
   build <- function(DATA, PRIOR) {
     make_obj(
       DATA,
@@ -249,7 +231,7 @@ fit_vcov <- function(FIT, TYPE, WORKPAR) {
   if (rcond(h) < .Machine$double.eps) {
     stop(
       "singular Hessian: the fit is on the boundary of the parameter space. ",
-      "A prior with DEGREES > 4 (see set_prior()) keeps it inside.",
+      "A prior with larger DEGREES (see set_prior()) keeps it inside.",
       call. = FALSE
     )
   }
@@ -259,22 +241,25 @@ fit_vcov <- function(FIT, TYPE, WORKPAR) {
       d <- set_meta_data(
         FIT$DATA$tab[i, , drop = FALSE],
         CC = FIT$DATA$CC,
-        VERBOSE = FALSE
+        VERBOSE = FALSE,
+        DESIGN = FIT$DATA$design[i]
       )
-      build(d, set_prior(4, Inf))$gr(par)
+      build(d, flat_prior(FIT$THETA))$gr(par)
     })
     out <- out %*% tcrossprod(s) %*% out
   }
-  nm <- ib_work_names(WORKPAR)
+  nm <- ib_work_names(WORKPAR, length(FIT$THETA))
   dimnames(out) <- list(nm, nm)
   out
 }
 
 
 ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
-  g <- diag(9)
+  p <- length(THETA)
+  m <- if (p == 5) 2 else 3
+  g <- diag(p)
   nm <- rownames(V)
-  if (SCALE != "working") {
+  if (SCALE != "working" && p == 9) {
     r <- tanh(THETA[7:9])
     q <- sqrt((1 - r[1]^2) * (1 - r[2]^2))
     rho <- r[1] * r[2] + r[3] * q
@@ -286,6 +271,8 @@ ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
     ) /
       (1 - rho^2)
     THETA[9] <- atanh(rho)
+  }
+  if (SCALE != "working") {
     nm <- c(
       "mu_eta",
       "mu_xi",
@@ -297,6 +284,9 @@ ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
       "rho_eta_gamma",
       "rho_xi_gamma"
     )
+    if (p == 5) {
+      nm <- project(nm, "Joe")
+    }
   }
   a <- (1 - LEVEL) / 2
   ci <- if (is.null(DEV)) {
@@ -312,13 +302,13 @@ ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
       ))
   }
   if (SCALE != "working") {
-    ci[4:6, ] <- exp(ci[4:6, ])
-    ci[7:9, ] <- tanh(ci[7:9, ])
+    ci[m + seq_len(m), ] <- exp(ci[m + seq_len(m), ])
+    ci[(2 * m + 1):p, ] <- tanh(ci[(2 * m + 1):p, ])
   }
   if (SCALE == "reporting") {
-    ci[1:3, ] <- stats::plogis(ci[1:3, ])
+    ci[seq_len(m), ] <- stats::plogis(ci[seq_len(m), ])
     ci[2, ] <- 1 - ci[2, 2:1]
-    nm[1:3] <- c("sensitivity", "specificity", "prevalence")
+    nm[seq_len(m)] <- c("sensitivity", "specificity", "prevalence")[seq_len(m)]
   }
   dimnames(ci) <- list(
     nm,

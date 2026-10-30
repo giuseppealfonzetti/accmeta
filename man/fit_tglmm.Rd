@@ -2,7 +2,7 @@
 % Please edit documentation in R/tglmm.R
 \name{fit_tglmm}
 \alias{fit_tglmm}
-\title{Fit the exact model}
+\title{Fit the trivariate generalized linear mixed model}
 \usage{
 fit_tglmm(
   DATA,
@@ -15,40 +15,28 @@ fit_tglmm(
 )
 }
 \arguments{
-\item{DATA}{An \code{accmeta_data} object, as returned by \code{\link[=set_meta_data]{set_meta_data()}}.}
+\item{DATA}{An \code{accmeta_data} object from \code{\link[=set_meta_data]{set_meta_data()}}.}
 
-\item{THETA_START}{Numeric vector of length 9 giving the starting value. If
-\code{NULL}, \code{\link[=init_theta]{init_theta()}} is used.}
+\item{THETA_START}{Numeric vector of length 9, or \code{NULL} for \code{\link[=init_theta]{init_theta()}}.}
 
-\item{N_NODES}{Number of quadrature nodes per dimension. The integrand is
-evaluated \code{N_NODES^3} times per study per likelihood evaluation.}
+\item{N_NODES}{Integer, at least 2, quadrature nodes per dimension.}
 
-\item{N_ITER}{Number of Newton steps used to locate the mode of the integrand.}
+\item{N_ITER}{Positive integer, Newton steps for the integrand mode.}
 
-\item{PRIOR}{Prior on \eqn{\Sigma_3}, as returned by \code{\link[=set_prior]{set_prior()}}. Under any
-prior but the flat one, \code{NLL} is a penalised objective rather than a
-log-likelihood.}
+\item{PRIOR}{An \code{accmeta_prior} object from \code{\link[=set_prior]{set_prior()}}.}
 
-\item{CONTROL}{List of control parameters passed to \code{\link[ucminf:ucminf]{ucminf::ucminf()}}; see
-its documentation for the accepted entries. The default raises \code{maxeval}
-above the ucminf default, which this likelihood exhausts before converging.}
+\item{CONTROL}{List passed to \code{\link[ucminf:ucminf]{ucminf::ucminf()}}.}
 
-\item{WORKPAR}{Coordinates the optimiser works in for the covariance:
-\code{"PinheiroBates"} (log-Cholesky, default) or \code{"Joe"} (log standard
-deviations and Fisher-z partial correlations, see \code{\link[=theta2joe]{theta2joe()}}).}
+\item{WORKPAR}{\code{"PinheiroBates"} or \code{"Joe"}, covariance coordinates.}
 }
 \value{
-A list with components \code{THETA}, the fitted parameter vector in the
-layout documented for \code{\link[=theta2list]{theta2list()}}; \code{CONVERGENCE}, the optimiser
-convergence code; \code{NLL}, the negative log-likelihood at the optimum;
-\code{OBJ}, the TMB object, retained for \code{\link[TMB:sdreport]{TMB::sdreport()}}; \code{PRIOR}, the prior
-used; and \code{DATA}, \code{WORKPAR}, \code{N_NODES} and \code{N_ITER}, the inputs, retained
-for \link[=vcov.accmeta_fit]{vcov()}.
+Object of class \code{accmeta_tglmm}, a list with \code{THETA} (numeric, length
+9), \code{CONVERGENCE} (integer), \code{NLL} (numeric), \code{OBJ} (TMB object), \code{PRIOR},
+\code{DATA}, \code{WORKPAR}, \code{MODEL} and \code{ESTIMATOR} (character), \code{N_NODES} and
+\code{N_ITER} (integer).
 }
 \description{
-Trivariate generalized linear mixed model. The
-likelihood has no closed form, so each study contributes a trivariate integral
-evaluated by adaptive Gauss-Hermite quadrature.
+Fit the trivariate generalized linear mixed model
 }
 \examples{
 \dontrun{

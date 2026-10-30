@@ -17,12 +17,17 @@ ib_jacobian_draw <- function(
   theta_work <- work(THETA)
 
   for (attempt in seq_len(10L)) {
-    d <- set_meta_data(
-      sim_data(DATA$n_studies, THETA, DATA$margins[, "n"]),
-      CC = DATA$CC
-    )
+    d <- sim_like(DATA, THETA)
     f <- try(
-      fit_tlmm(d, THETA_START = THETA, PRIOR = PRIOR, WORKPAR = WORKPAR),
+      fit_mle(
+        d,
+        theta_model(THETA),
+        "lmm",
+        THETA,
+        PRIOR,
+        list(maxeval = 1000),
+        WORKPAR
+      ),
       silent = TRUE
     )
     if (!inherits(f, "try-error") && all(is.finite(f$THETA))) {
@@ -31,10 +36,18 @@ ib_jacobian_draw <- function(
     f <- NULL
   }
   if (is.null(f)) {
-    return(rep(NA, 18))
+    return(rep(NA, 2 * length(THETA)))
   }
 
-  obj <- make_obj(d, THETA, set_prior(4, Inf), WORKPAR, "tglmm", N_NODES, N_ITER)
+  obj <- make_obj(
+    d,
+    THETA,
+    flat_prior(THETA),
+    WORKPAR,
+    "tglmm",
+    N_NODES,
+    N_ITER
+  )
   c(work(f$THETA), -as.numeric(obj$gr(theta_work)))
 }
 
@@ -70,8 +83,9 @@ ib_jacobian <- function(
   }
   sim <- do.call(rbind, rows)
   sim <- sim[rowSums(!is.finite(sim)) == 0, , drop = FALSE]
-  pi_work <- sim[, 1:9]
-  score <- sim[, 10:18]
+  p <- length(FIT$THETA)
+  pi_work <- sim[, seq_len(p)]
+  score <- sim[, p + seq_len(p)]
   list(
     J = stats::cov(pi_work, score),
     V = stats::cov(pi_work),
@@ -83,7 +97,10 @@ ib_jacobian <- function(
   )
 }
 
-ib_work_names <- function(WORKPAR) {
+ib_work_names <- function(WORKPAR, P = 9) {
+  if (P == 5) {
+    return(project(ib_work_names(WORKPAR), WORKPAR))
+  }
   if (WORKPAR == "Joe") {
     c(
       "mu_eta",

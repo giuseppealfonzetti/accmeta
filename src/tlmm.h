@@ -13,6 +13,7 @@ Type tlmm(objective_function<Type>* obj)
   DATA_SCALAR(DEGREES);      // Wishart degrees of freedom
   DATA_SCALAR(SCALE);        // Wishart scale
   DATA_STRING(WORKPAR);      // "PinheiroBates" or "Joe"
+  DATA_IVECTOR(COHORT);      // 1 cohort, 0 case-control (no prevalence)
 
   // params
   PARAMETER_VECTOR(MU);      // mu_eta, mu_xi, mu_gamma
@@ -50,7 +51,13 @@ Type tlmm(objective_function<Type>* obj)
     matrix<Type> Sigmai = Sigma;
     for(int j = 0; j < 3; j++) Sigmai(j, j) += WVAR(i, j);
     vector<Type> r = vector<Type>(EST.row(i)) - MU;
-    nll += MVNORM<Type>(Sigmai)(r);
+    if (COHORT(i) == 1) {
+      nll += MVNORM<Type>(Sigmai)(r);
+    } else {
+      matrix<Type> S2 = Sigmai.block(0, 0, 2, 2);
+      vector<Type> r2 = r.head(2);
+      nll += MVNORM<Type>(S2)(r2);
+    }
   }
 
   // Wishart(DEGREES, A*I_3) prior. 

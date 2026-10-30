@@ -1,24 +1,17 @@
 #' Simulate misclassification tables
 #'
-#' Generates synthetic diagnostic accuracy data from the exact TGLMM model. For each
-#' study a trivariate normal random effect \eqn{(\eta_i, \xi_i, \gamma_i)} is
-#' drawn, followed by nested binomial draws: the diseased total from
-#' \eqn{\gamma_i}, the true positives from \eqn{\eta_i}, and the false positives
-#' from \eqn{\xi_i}.
+#' @param N_STUDIES Positive integer, number of studies.
+#' @param THETA Numeric vector of length 9 (trivariate), 5 (bivariate) or 12
+#'   (skew-normal, needs 'sn'), in the layout of [theta2list()].
+#' @param N_I Positive integer vector of length `N_STUDIES`, study sizes.
+#' @param DF Numeric greater than 2, degrees of freedom of Student t random
+#'   effects; `Inf` for normal. Length-9 `THETA` only.
+#' @param N1 Optional integer vector of length `N_STUDIES`, number of diseased of
+#'   case-control studies and `NA` for cohort studies. Required, without `NA`, for
+#'   a length-5 `THETA`.
 #'
-#' @param N_STUDIES Number of studies to generate. A single positive integer.
-#' @param THETA Numeric vector of length 9, or 12 for skew-normal random
-#'   effects, which need the 'sn' package. See [theta2list()].
-#' @param N_I Numeric vector of length `N_STUDIES` giving the total sample size
-#'   \eqn{n_i} of each study. Entries must be positive integers.
-#' @param DF Degrees of freedom \eqn{\nu > 2} of Student t random effects, as in
-#'   Guolo (2023), scaled to have covariance `SIGMA`, i.e. scale matrix
-#'   \eqn{(\nu - 2)\Sigma_3/\nu}. `Inf` gives normal random effects. Only for
-#'   `THETA` of length 9.
-#'
-#' @return An integer matrix with `N_STUDIES` rows and columns `n11`, `n10`,
-#'   `n01`, `n00`, the misclassification counts of each study. Each row sums to
-#'   the corresponding entry of `N_I`.
+#' @return Integer matrix with `N_STUDIES` rows and columns `n11`, `n10`, `n01`,
+#'   `n00`.
 #'
 #' @examples
 #' th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
@@ -27,7 +20,7 @@
 #' sim_data(5, th, sample(40:200, 5, TRUE))
 #'
 #' @export
-sim_data <- function(N_STUDIES, THETA, N_I, DF = Inf) {
+sim_data <- function(N_STUDIES, THETA, N_I, DF = Inf, N1 = NULL) {
   stopifnot(
     is.numeric(N_STUDIES),
     length(N_STUDIES) == 1,
@@ -38,8 +31,15 @@ sim_data <- function(N_STUDIES, THETA, N_I, DF = Inf) {
     all(N_I == round(N_I)),
     is.numeric(DF),
     length(DF) == 1,
-    DF > 2
+    DF > 2,
+    is.null(N1) || (length(N1) == N_STUDIES && all(is.na(N1) | (N1 >= 0 & N1 <= N_I)))
   )
+  if (length(THETA) == 5) {
+    if (is.null(N1) || anyNA(N1)) {
+      stop("a bivariate THETA needs N1 for every study.", call. = FALSE)
+    }
+    THETA <- embed(THETA, "PinheiroBates")
+  }
   if (is.finite(DF) && length(THETA) == 12) {
     stop("t random effects need a length-9 THETA.", call. = FALSE)
   }
@@ -60,6 +60,9 @@ sim_data <- function(N_STUDIES, THETA, N_I, DF = Inf) {
       rep(par$MU - sn::dp2cp(dp, "SN", upto = 1)$mean, each = N_STUDIES)
   }
   n1 <- stats::qbinom(stats::runif(N_STUDIES), N_I, stats::plogis(U[, 3]))
+  if (!is.null(N1)) {
+    n1[!is.na(N1)] <- N1[!is.na(N1)]
+  }
   n11 <- stats::qbinom(stats::runif(N_STUDIES), n1, stats::plogis(U[, 1]))
   n10 <- stats::qbinom(stats::runif(N_STUDIES), N_I - n1, stats::plogis(U[, 2]))
   out <- cbind(n11 = n11, n10 = n10, n01 = n1 - n11, n00 = N_I - n1 - n10)
@@ -67,33 +70,29 @@ sim_data <- function(N_STUDIES, THETA, N_I, DF = Inf) {
 }
 
 
-#' Validate misclassification counts and pre-compute study summaries
+#' Build the data object
 #'
-#' Checks the four misclassification counts of each study and pre-computes study
-#' summaries used by [fit_tlmm()] or [fit_tglmm()].
+#' @param MATRIX Matrix or data frame of non-negative integer counts with four
+#'   columns named `n11`, `n10`, `n01`, `n00` (taken in this order if unnamed).
+#' @param CC Non-negative numeric, continuity correction added to every cell.
+#' @param VERBOSE Logical, print messages.
+#' @param DESIGN Optional character vector with one entry per study, `"cohort"`
+#'   or `"case-control"`. Default all `"cohort"`.
 #'
-#' @param MATRIX An integer matrix or data frame with four columns holding the
-#'   misclassification counts of each study. If the
-#'   columns are named, they must be named `n11`, `n10`, `n01`, `n00`.
-#'   If they are unnamed, that order is assumed.
-#' @param CC Non-negative continuity correction, added to each of the four cells
-#'   of every study. Needed by [fit_tlmm()] when zero cells are observed.
-#' @param VERBOSE allow messages.
-#'
-#' @return An object of class `accmeta_data`, a list with components:
+#' @return Object of class `accmeta_data`, a list with:
 #'   \describe{
-#'     \item{`tab`}{the raw counts, columns `n11`, `n10`, `n01`, `n00`.}
-#'     \item{`margins`}{the raw margins, columns `n1`, `n0`, `n`.}
-#'     \item{`counts`}{raw binomial responses and denominators for the exact
-#'       model, columns `y_eta`, `y_xi`, `y_gamma`, `den_eta`, `den_xi`,
-#'       `den_gamma`.}
-#'     \item{`est`}{logit of `SE`, of `1 - SP` and of `PREV`, columns `eta`, `xi`, `gamma`.}
-#'     \item{`wvar`}{within-study variances, columns `var_eta`, `var_xi`,
-#'       `var_gamma`.}
-#'     \item{`rates`}{per-study accuracy, columns `SE`, `SP`, `PREV`.}
-#'     \item{`n_studies`}{the number of studies.}
-#'     \item{`CC`}{the continuity correction applied.}
+#'     \item{`tab`}{numeric matrix of counts, columns `n11`, `n10`, `n01`, `n00`.}
+#'     \item{`margins`}{numeric matrix, columns `n1`, `n0`, `n`.}
+#'     \item{`counts`}{numeric matrix, columns `y_eta`, `y_xi`, `y_gamma`,
+#'       `den_eta`, `den_xi`, `den_gamma`.}
+#'     \item{`est`}{numeric matrix, columns `eta`, `xi`, `gamma`.}
+#'     \item{`wvar`}{numeric matrix, columns `var_eta`, `var_xi`, `var_gamma`.}
+#'     \item{`rates`}{numeric matrix, columns `SE`, `SP`, `PREV`.}
+#'     \item{`n_studies`}{integer.}
+#'     \item{`CC`}{numeric.}
+#'     \item{`design`}{character vector.}
 #'   }
+#'   The `gamma`, `var_gamma` and `PREV` entries are `NA` for case-control studies.
 #'
 #' @seealso [sim_data()] for the input layout, [fit_tlmm()] and [fit_tglmm()]
 #'   for the fitting functions that consume the result.
@@ -109,7 +108,7 @@ sim_data <- function(N_STUDIES, THETA, N_I, DF = Inf) {
 #' cbind(d$est[, "eta"], set_meta_data(x, CC = 0.5)$est[, "eta"])
 #'
 #' @export
-set_meta_data <- function(MATRIX, CC = 0, VERBOSE = TRUE) {
+set_meta_data <- function(MATRIX, CC = 0, VERBOSE = TRUE, DESIGN = NULL) {
   stopifnot(
     is.matrix(MATRIX) || is.data.frame(MATRIX),
     is.numeric(CC),
@@ -148,15 +147,23 @@ set_meta_data <- function(MATRIX, CC = 0, VERBOSE = TRUE) {
   if (any(margins[, "n"] == 0)) {
     stop("every study must have at least one observation")
   }
+  if (is.null(DESIGN)) {
+    DESIGN <- rep("cohort", nrow(tab))
+  }
+  stopifnot(
+    length(DESIGN) == nrow(tab),
+    all(DESIGN %in% c("cohort", "case-control"))
+  )
+  cc <- DESIGN == "case-control"
 
   # data for tglmm
   counts <- cbind(
     y_eta = tab[, "n11"],
     y_xi = tab[, "n10"],
-    y_gamma = n1,
+    y_gamma = ifelse(cc, 0, n1),
     den_eta = n1,
     den_xi = n0,
-    den_gamma = n1 + n0
+    den_gamma = ifelse(cc, 0, n1 + n0)
   )
 
   # data after cc
@@ -165,7 +172,9 @@ set_meta_data <- function(MATRIX, CC = 0, VERBOSE = TRUE) {
   c0 <- m[, "n10"] + m[, "n00"]
   y <- cbind(m[, "n11"], m[, "n10"], c1)
   den <- cbind(c1, c0, c1 + c0)
-  empty <- which(rowSums(y == 0 | y == den) > 0)
+  bad <- y == 0 | y == den
+  bad[cc, 3] <- FALSE
+  empty <- which(rowSums(bad) > 0)
   if (length(empty) > 0 & VERBOSE) {
     lab <- if (is.null(rownames(tab))) empty else rownames(tab)[empty]
     message(
@@ -189,7 +198,10 @@ set_meta_data <- function(MATRIX, CC = 0, VERBOSE = TRUE) {
     var_xi = 1 / y[, 2] + 1 / (den[, 2] - y[, 2]),
     var_gamma = 1 / y[, 3] + 1 / (den[, 3] - y[, 3])
   )
+  est[cc, "gamma"] <- NA
+  wvar[cc, "var_gamma"] <- NA
   rates <- cbind(SE = p[, 1], SP = 1 - p[, 2], PREV = p[, 3])
+  rates[cc, "PREV"] <- NA
 
   # return output
   out <- list(
@@ -200,7 +212,8 @@ set_meta_data <- function(MATRIX, CC = 0, VERBOSE = TRUE) {
     wvar = wvar,
     rates = rates,
     n_studies = nrow(tab),
-    CC = CC
+    CC = CC,
+    design = DESIGN
   )
   out[1:6] <- lapply(out[1:6], function(x) {
     rownames(x) <- rownames(MATRIX)

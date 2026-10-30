@@ -4,23 +4,20 @@
 \alias{set_prior}
 \title{Set the prior on the random-effects covariance}
 \usage{
-set_prior(DEGREES = 5, SCALE = Inf)
+set_prior(DEGREES = NULL, SCALE = 100)
 }
 \arguments{
-\item{DEGREES}{Degrees of freedom \eqn{\nu} of the Wishart prior. The default
-keeps the covariance off the boundary of the parameter space, which the
-unpenalised fit reaches on small or sparse data. Use \code{set_prior(4)} for the
-flat prior.}
+\item{DEGREES}{Integer, at least 3, Wishart degrees of freedom, or \code{NULL} for
+the number of random effects plus 2.}
 
-\item{SCALE}{Scale \eqn{A}. Represents a soft ceiling on the variance scale.}
+\item{SCALE}{Positive numeric, Wishart scale. \code{Inf} with \code{DEGREES} equal to the
+number of random effects plus 1 gives maximum likelihood.}
 }
 \value{
-An object of class \code{accmeta_prior}: a list with \code{DEGREES} and
-\code{SCALE}, held as given and passed to the template unchanged.
+Object of class \code{accmeta_prior}, a list with \code{DEGREES} and \code{SCALE}.
 }
 \description{
-Control the prior object for \eqn{\Sigma_3 \sim W(\nu, A I_3)} to be passed to \code{\link[=fit_tlmm]{fit_tlmm()}} or \code{\link[=fit_tglmm]{fit_tglmm()}} through the \code{PRIOR} argument. The prior is
-\eqn{\Sigma_3 \sim W(\nu, A I_3)}. Setting \eqn{\nu=4} and \eqn{A=Inf} correspond to maximum likelihood estimation.
+Set the prior on the random-effects covariance
 }
 \examples{
 set_prior()

@@ -1,26 +1,14 @@
-#' Fit the asymptotic normal approximation model
+#' Fit the trivariate linear mixed model
 #'
-#' Trivariate linear mixed model. A within-study normal approximation
-#' makes the likelihood available in closed form.
+#' @param DATA An `accmeta_data` object from [set_meta_data()] with finite `est`.
+#' @param THETA_START Numeric vector of length 9, or `NULL` for [init_theta()].
+#' @param PRIOR An `accmeta_prior` object from [set_prior()].
+#' @param CONTROL List passed to [ucminf::ucminf()].
+#' @param WORKPAR `"PinheiroBates"` or `"Joe"`, covariance coordinates.
 #'
-#' @param DATA An `accmeta_data` object, as returned by [set_meta_data()].
-#' @param THETA_START Numeric vector of length 9 giving the starting value. If
-#'   `NULL`, [init_theta()] is used.
-#' @param PRIOR Prior on random effects covariance matrix, as returned by
-#'   [set_prior()]. Under any prior but the flat one, `NLL` is a penalised
-#'   objective rather than a log-likelihood.
-#' @param CONTROL List of control parameters passed to [ucminf::ucminf()]; see
-#'   its documentation for the accepted entries.
-#'
-#' @param WORKPAR Coordinates the optimiser works in for the covariance:
-#'   `"PinheiroBates"` (log-Cholesky, default) or `"Joe"` (log standard
-#'   deviations and Fisher-z partial correlations, see [theta2joe()]).
-#'
-#' @return A list with components `THETA`, the fitted parameter vector in the
-#'   layout documented for [theta2list()]; `CONVERGENCE`, the optimiser
-#'   convergence code; `NLL`, the negative log-likelihood at the optimum;
-#'   `OBJ`, the TMB object, retained for [TMB::sdreport()]; `PRIOR`, the prior
-#'   used; and `DATA` and `WORKPAR`, the inputs, retained for [vcov()][vcov.accmeta_fit].
+#' @return Object of class `accmeta_tlmm`, a list with `THETA` (numeric, length
+#'   9), `CONVERGENCE` (integer), `NLL` (numeric), `OBJ` (TMB object), `PRIOR`,
+#'   `DATA`, `WORKPAR`, `MODEL` and `ESTIMATOR` (character).
 #'
 #' @examples
 #' th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
@@ -35,18 +23,69 @@ fit_tlmm <- function(
   CONTROL = list(maxeval = 1000),
   WORKPAR = c("PinheiroBates", "Joe")
 ) {
-  WORKPAR <- match.arg(WORKPAR)
+  fit_mle(
+    DATA,
+    "trivariate",
+    "lmm",
+    THETA_START,
+    PRIOR,
+    CONTROL,
+    match.arg(WORKPAR)
+  )
+}
+
+fit_mle <- function(
+  DATA,
+  MODEL,
+  ESTIMATOR,
+  THETA_START = NULL,
+  PRIOR = set_prior(),
+  CONTROL = list(maxeval = 1000),
+  WORKPAR = "Joe",
+  N_NODES = 15L,
+  N_ITER = 10L
+) {
+  biv <- MODEL == "bivariate"
+  p <- if (biv) 5 else 9
+  k <- if (biv) 1:2 else 1:3
   stopifnot(
     inherits(DATA, "accmeta_data"),
-    is.matrix(DATA$est),
-    is.finite(DATA$est),
-    inherits(PRIOR, "accmeta_prior")
+    is.matrix(DATA$counts),
+    is.matrix(DATA$est)
   )
-  if (is.null(THETA_START)) {
-    THETA_START <- init_theta(DATA)
+  if (!biv && !any(DATA$counts[, "den_gamma"] > 0)) {
+    stop(
+      "the trivariate model needs at least one cohort study; ",
+      "use MODEL = 'bivariate'.",
+      call. = FALSE
+    )
   }
-  stopifnot(is.numeric(THETA_START), length(THETA_START) == 9)
-  obj <- make_obj(DATA, THETA_START, PRIOR, WORKPAR, "tlmm")
+  if (ESTIMATOR == "lmm") {
+    stopifnot(all(is.finite(DATA$est[, k]) | is.na(DATA$est[, k])))
+  }
+  PRIOR <- resolve_prior(PRIOR, length(k))
+  if (is.null(THETA_START)) {
+    THETA_START <- init_theta(DATA, MODEL = MODEL)
+  }
+  stopifnot(
+    is.numeric(THETA_START),
+    length(THETA_START) == p,
+    is.numeric(N_NODES),
+    length(N_NODES) == 1,
+    N_NODES >= 2,
+    is.numeric(N_ITER),
+    length(N_ITER) == 1,
+    N_ITER >= 1
+  )
+  obj <- make_obj(
+    DATA,
+    THETA_START,
+    PRIOR,
+    WORKPAR,
+    paste0("t", ESTIMATOR),
+    N_NODES,
+    N_ITER
+  )
   est <- ucminf::ucminf(
     par = obj$par,
     fn = obj$fn,
@@ -54,14 +93,26 @@ fit_tlmm <- function(
     control = CONTROL
   )
   out <- list(
-    THETA = unname(c(est$par[1:3], obj$report(est$par)$LOGCHOL)),
+    THETA = unname(c(
+      est$par[seq_along(k)],
+      obj$report(est$par)$LOGCHOL[seq_len(p - length(k))]
+    )),
     CONVERGENCE = est$convergence,
     NLL = est$value,
     OBJ = obj,
     PRIOR = PRIOR,
     DATA = DATA,
-    WORKPAR = WORKPAR
+    WORKPAR = WORKPAR,
+    MODEL = MODEL,
+    ESTIMATOR = ESTIMATOR
   )
-  class(out) <- c("accmeta_tlmm", "accmeta_fit")
+  if (ESTIMATOR == "glmm") {
+    out$N_NODES <- N_NODES
+    out$N_ITER <- N_ITER
+  }
+  class(out) <- c(
+    paste0("accmeta_", if (biv) "b" else "t", ESTIMATOR),
+    "accmeta_fit"
+  )
   return(out)
 }

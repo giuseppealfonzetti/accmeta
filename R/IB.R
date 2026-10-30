@@ -1,28 +1,22 @@
-#' Iterative bootstrap bias correction for TLMM
+#' Fit by iterative bootstrap
 #'
-#' @param DATA An `accmeta_data` object, as returned by [set_meta_data()],
-#'   with `CC > 0`.
-#' @param CONTROL Iterative-bootstrap control object from [set_ib_control()].
-#' @param PRIOR Prior on \eqn{\Sigma_3}, as returned by [set_prior()].
-#' @param WORKPAR Working scale for the matching equation and the
-#'   update: `"PinheiroBates"` based on the log-Cholesky decomposition,
-#'   or `"Joe"` (default) based on unconstrained partial correlations. Also
-#'   passed to the auxiliary [fit_tlmm()] fits.
-#' @param SEEDS Integer vector of length `H` seeding the simulated datasets. If
-#'   `NULL`, drawn once and then held fixed, so serial and parallel runs agree.
-#'   When `NULL`, the seeds are drawn from the caller's RNG, which is the only
-#'   change `fit_ib()` makes to the caller's RNG state.
-#' @param VCOV If `TRUE`, also computes the Jacobian at the estimate, stored as `JACOBIAN`, which
-#'   [vcov()][vcov.accmeta_ib] and [confint()][confint.accmeta_ib] need. Its settings are the
-#'   `VCOV_*` entries of [set_ib_control()]. It can be added later with
-#'   [update()][update.accmeta_ib].
+#' @param DATA An `accmeta_data` object from [set_meta_data()] with `CC > 0`.
+#' @param CONTROL An `accmeta_ib_control` object from [set_ib_control()].
+#' @param PRIOR An `accmeta_prior` object from [set_prior()].
+#' @param WORKPAR `"Joe"` or `"PinheiroBates"`, covariance coordinates.
+#' @param SEEDS Integer vector of length `CONTROL$H`, or `NULL` to draw them from
+#'   the caller's random number generator.
+#' @param VCOV Logical, also compute the Jacobian, stored as `JACOBIAN`.
+#' @param MODEL `"trivariate"` or `"bivariate"`.
 #'
-#' @return An `accmeta_ib` object. `STOP` says why the iteration ended: `"converged"`
-#'   (the convergence test passed), `"stall"` (no improvement for `PATIENCE` iterations),
-#'   `"boundary"` (the next update would leave the box of [set_ib_control()], in which case
-#'   `THETA` is the last iterate inside it) or `"maxit"`, in which case `THETA` is the last
-#'   iterate. The TLMM start is clamped into the box. `RATIO` is the ratio of successive steps,
-#'   an empirical contraction rate.
+#' @return Object of class `accmeta_ib`, a list with `THETA` (numeric, length 9
+#'   or 5), `PI_HAT` (numeric, auxiliary estimate), `N_ITER` (integer),
+#'   `CONVERGED` (logical), `STOP` (`"converged"`, `"stall"`, `"boundary"`
+#'   or `"maxit"`), `RESIDUAL` (numeric), `PROGRESS`, `THRESHOLD`, `FAIL`,
+#'   `DEGEN`, `RATIO` (numeric vectors, one entry per iteration), `PATH`, `GAP`,
+#'   `SE` (numeric matrices, one row per iteration), `SEEDS`, `PRIOR`, `CONTROL`,
+#'   `WORKPAR`, `DATA`, `MODEL`, `ESTIMATOR`, and `JACOBIAN` (list) when
+#'   `VCOV = TRUE`.
 #'
 #' @seealso [fit_tlmm()] for the auxiliary estimator, [set_ib_control()] for the
 #'   control settings, and [set_prior()] for the prior specification.
@@ -41,10 +35,10 @@ fit_ib <- function(
   PRIOR = set_prior(),
   WORKPAR = c("Joe", "PinheiroBates"),
   SEEDS = NULL,
-  VCOV = FALSE
+  VCOV = FALSE,
+  MODEL = c("trivariate", "bivariate")
 ) {
-  # Setup
-  n_params <- 9
+  MODEL <- match.arg(MODEL)
   # run the whole budget: no convergence or stall stops
   budget_only <- CONTROL$TERMINATION == "max_iter"
 
@@ -52,7 +46,6 @@ fit_ib <- function(
   stopifnot(
     inherits(DATA, "accmeta_data"),
     is.matrix(DATA$tab),
-    inherits(PRIOR, "accmeta_prior"),
     inherits(CONTROL, "accmeta_ib_control"),
     is.null(SEEDS) || (is.numeric(SEEDS) && length(SEEDS) == CONTROL$H),
     isTRUE(VCOV) || isFALSE(VCOV)
@@ -79,12 +72,20 @@ fit_ib <- function(
     )
   }
 
-  n_i <- DATA$margins[, "n"]
-
   # initial estimate
-  pi_hat <- fit_tlmm(DATA, PRIOR = PRIOR, WORKPAR = WORKPAR)$THETA
+  PRIOR <- resolve_prior(PRIOR, if (MODEL == "bivariate") 2 else 3)
+  pi_hat <- fit_mle(
+    DATA,
+    MODEL,
+    "lmm",
+    NULL,
+    PRIOR,
+    list(maxeval = 1000),
+    WORKPAR
+  )$THETA
+  n_params <- length(pi_hat)
   pi_hat_work <- ib_to_work(pi_hat, WORKPAR)
-  box <- ib_box(WORKPAR, CONTROL)
+  box <- ib_box(WORKPAR, CONTROL, n_params)
   theta <- ib_from_work(pmin(pmax(pi_hat_work, box$L), box$U), WORKPAR)
 
   # initialise path tracking
@@ -116,9 +117,7 @@ fit_ib <- function(
       THETA = theta,
       SEEDS = SEEDS,
       H = CONTROL$H,
-      N_STUDIES = DATA$n_studies,
-      N_I = n_i,
-      CC = DATA$CC,
+      DATA = DATA,
       PRIOR = PRIOR,
       USE_PARALLEL = use_parallel,
       PI_HAT_WORK = pi_hat_work,
@@ -250,7 +249,9 @@ fit_ib <- function(
     PRIOR = PRIOR,
     CONTROL = CONTROL,
     WORKPAR = WORKPAR,
-    DATA = DATA
+    DATA = DATA,
+    MODEL = MODEL,
+    ESTIMATOR = "ib"
   )
   class(out) <- c("accmeta_ib", "accmeta_fit")
   if (VCOV) {
@@ -276,7 +277,10 @@ ib_start_daemons <- function(NCORES, N) {
   mirai::daemons(min(NCORES, N))
 }
 
-ib_box <- function(WORKPAR, CONTROL) {
+ib_box <- function(WORKPAR, CONTROL, P = 9) {
+  if (P == 5) {
+    return(lapply(ib_box(WORKPAR, CONTROL), project, WORKPAR = WORKPAR))
+  }
   mu <- rep(CONTROL$BOX_MU, 3)
   sd <- log(CONTROL$BOX_SD)
   if (WORKPAR == "Joe") {
@@ -298,8 +302,23 @@ ib_from_work <- function(WORK, WORKPAR) {
   if (WORKPAR == "Joe") joe2theta(WORK) else WORK
 }
 
+sim_like <- function(DATA, THETA) {
+  m <- DATA$margins
+  design <- if (is.null(DATA$design)) rep("cohort", DATA$n_studies) else DATA$design
+  n1 <- if (length(THETA) == 5) {
+    m[, "n1"]
+  } else {
+    ifelse(design == "case-control", m[, "n1"], NA)
+  }
+  set_meta_data(
+    sim_data(DATA$n_studies, THETA, m[, "n"], N1 = n1),
+    CC = DATA$CC,
+    DESIGN = design
+  )
+}
+
 # single fit helper function
-ib_one_fit <- function(REP, SEEDS, THETA, N_STUDIES, N_I, CC, PRIOR, WORKPAR) {
+ib_one_fit <- function(REP, SEEDS, THETA, DATA, PRIOR, WORKPAR) {
   withr::local_seed(
     SEEDS[REP],
     .rng_kind = "Mersenne-Twister",
@@ -308,16 +327,16 @@ ib_one_fit <- function(REP, SEEDS, THETA, N_STUDIES, N_I, CC, PRIOR, WORKPAR) {
 
   # attempts loop to defend from bad sims
   for (attempt in seq_len(10L)) {
-    d <- accmeta::set_meta_data(
-      accmeta::sim_data(N_STUDIES, THETA, N_I),
-      CC = CC
-    )
+    d <- sim_like(DATA, THETA)
     f <- try(
-      accmeta::fit_tlmm(
+      fit_mle(
         d,
-        THETA_START = THETA,
-        PRIOR = PRIOR,
-        WORKPAR = WORKPAR
+        theta_model(THETA),
+        "lmm",
+        THETA,
+        PRIOR,
+        list(maxeval = 1000),
+        WORKPAR
       ),
       silent = TRUE
     )
@@ -325,7 +344,7 @@ ib_one_fit <- function(REP, SEEDS, THETA, N_STUDIES, N_I, CC, PRIOR, WORKPAR) {
       return(f$THETA)
     }
   }
-  rep(NA, 9)
+  rep(NA, length(THETA))
 }
 
 # helper function to compute the ib correction term at a given iteration
@@ -333,9 +352,7 @@ ib_gap <- function(
   THETA,
   SEEDS,
   H,
-  N_STUDIES,
-  N_I,
-  CC,
+  DATA,
   PRIOR,
   USE_PARALLEL,
   PI_HAT_WORK,
@@ -349,9 +366,7 @@ ib_gap <- function(
       .args = list(
         SEEDS = SEEDS,
         THETA = THETA,
-        N_STUDIES = N_STUDIES,
-        N_I = N_I,
-        CC = CC,
+        DATA = DATA,
         PRIOR = PRIOR,
         WORKPAR = WORKPAR
       )
@@ -362,9 +377,7 @@ ib_gap <- function(
         REP = REP,
         SEEDS = SEEDS,
         THETA = THETA,
-        N_STUDIES = N_STUDIES,
-        N_I = N_I,
-        CC = CC,
+        DATA = DATA,
         PRIOR = PRIOR,
         WORKPAR = WORKPAR
       )

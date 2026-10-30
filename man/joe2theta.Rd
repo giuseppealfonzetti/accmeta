@@ -2,19 +2,19 @@
 % Please edit documentation in R/utils.R
 \name{joe2theta}
 \alias{joe2theta}
-\title{Map Joe's unconstrained parameters back to the working vector}
+\title{Map Joe coordinates to the parameter vector}
 \usage{
 joe2theta(JOEPAR)
 }
 \arguments{
-\item{JOEPAR}{Numeric vector of length 9 or 12 in the layout returned by
+\item{JOEPAR}{Numeric vector of length 9, 5 or 12, in the layout returned by
 \code{\link[=theta2joe]{theta2joe()}}.}
 }
 \value{
-A numeric vector of length 9 (the working vector \code{THETA}).
+Numeric vector of the same length, in the layout of \code{\link[=theta2list]{theta2list()}}.
 }
 \description{
-Map Joe's unconstrained parameters back to the working vector
+Map Joe coordinates to the parameter vector
 }
 \seealso{
 \code{\link[=theta2joe]{theta2joe()}} for the inverse map.

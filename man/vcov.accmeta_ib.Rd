@@ -20,31 +20,29 @@
 )
 }
 \arguments{
-\item{object}{An \code{accmeta_ib} object, as returned by \code{\link[=fit_ib]{fit_ib()}}.}
+\item{object}{An \code{accmeta_ib} object; \code{vcov()} and \code{confint()} need its
+Jacobian.}
 
 \item{...}{Ignored by \code{vcov()} and \code{confint()}; not allowed by \code{update()}.}
 
-\item{VCOV}{If \code{TRUE}, computes and stores the Jacobian; if \code{FALSE}, drops
-it. The IB is not refitted.}
+\item{VCOV}{Logical, add (\code{TRUE}) or drop (\code{FALSE}) the Jacobian.}
 
-\item{parm}{Parameters to report, by name or position. All by default.}
+\item{parm}{Character or integer vector, parameters to report. All by default.}
 
-\item{level}{Confidence level.}
+\item{level}{Numeric in (0, 1), confidence level.}
 
 \item{METHOD}{\code{"wald"} or \code{"basic"}.}
 
-\item{SCALE}{\code{"working"} for intervals in the coordinates of \code{WORKPAR},
-\code{"natural"} for the means, standard deviations and correlations, or
-\code{"reporting"}, as \code{"natural"} with sensitivity, specificity and prevalence
-in place of the means.}
+\item{SCALE}{\code{"working"}, \code{"natural"} or \code{"reporting"}; the last two need
+\code{WORKPAR = "Joe"}.}
 }
 \value{
-\code{update()} returns the fit with its Jacobian added or removed.
-\code{vcov()} returns a named 9x9 matrix. \code{confint()} returns a matrix with one
-row per parameter and the lower and upper limits as columns.
+\code{vcov()}: named numeric matrix, one row and column per parameter.
+\code{confint()}: numeric matrix with one row per parameter and two columns.
+\code{update()}: the \code{accmeta_ib} object.
 }
 \description{
-Covariance matrix and confidence intervals for a \code{\link[=fit_ib]{fit_ib()}} estimate.
+Inference for IB fits
 }
 \examples{
 \dontrun{

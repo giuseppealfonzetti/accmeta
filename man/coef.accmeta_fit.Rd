@@ -6,7 +6,7 @@
 \alias{print.accmeta_ib}
 \alias{vcov.accmeta_fit}
 \alias{confint.accmeta_fit}
-\title{Extract estimated parameters}
+\title{Methods for fitted objects}
 \usage{
 \method{coef}{accmeta_fit}(object, ...)
 
@@ -26,29 +26,29 @@
 )
 }
 \arguments{
-\item{object}{A fitted object, as returned by \code{\link[=fit_tlmm]{fit_tlmm()}}, \code{\link[=fit_tglmm]{fit_tglmm()}} or
-\code{\link[=fit_ib]{fit_ib()}}.}
+\item{object}{A fitted object from \code{\link[=fit_meta_model]{fit_meta_model()}}, \code{\link[=fit_tlmm]{fit_tlmm()}},
+\code{\link[=fit_tglmm]{fit_tglmm()}} or \code{\link[=fit_ib]{fit_ib()}}.}
 
 \item{...}{Ignored.}
 
 \item{x}{A fitted object.}
 
-\item{TYPE}{\code{"sandwich"} or \code{"hessian"} .}
+\item{TYPE}{\code{"sandwich"} or \code{"hessian"}.}
 
-\item{parm}{Parameters to report, by name or position. All by default.}
+\item{parm}{Character or integer vector, parameters to report. All by default.}
 
-\item{level}{Confidence level.}
+\item{level}{Numeric in (0, 1), confidence level.}
 
-\item{SCALE}{\code{"working"} for intervals in the coordinates of the fit's
-\code{WORKPAR}, \code{"natural"} for the means, standard deviations and
-correlations, or \code{"reporting"}, as \code{"natural"} with sensitivity,
-specificity and prevalence in place of the means.}
+\item{SCALE}{\code{"working"}, \code{"natural"} or \code{"reporting"}.}
 }
 \value{
-A list with \code{MU} and \code{SIGMA}, named as documented for \code{\link[=theta2list]{theta2list()}}.
+\code{coef()}: list with \code{MU} (named numeric, length 3 or 2) and \code{SIGMA}
+(named covariance matrix). \code{vcov()}: named numeric matrix, one row and column
+per parameter. \code{confint()}: numeric matrix with one row per parameter and two
+columns. \code{print()}: \code{x}, invisibly.
 }
 \description{
-Extract random-effects mean vector and covariance matrix.
+Methods for fitted objects
 }
 \examples{
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)

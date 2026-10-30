@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{set_ib_control}
 \alias{set_ib_control}
-\title{Set the control parameters for the iterative bootstrap}
+\title{Set the iterative bootstrap options}
 \usage{
 set_ib_control(
   H = 100,
@@ -21,57 +21,41 @@ set_ib_control(
 )
 }
 \arguments{
-\item{H}{Number of datasets simulated per iteration.}
+\item{H}{Integer greater than 9, simulated datasets per iteration.}
 
-\item{MAX_ITER}{Maximum number of iterations. If \code{NULL}, 100.}
+\item{MAX_ITER}{Positive integer, maximum iterations, or \code{NULL} for 100.}
 
-\item{STEP}{Damping factor \eqn{\gamma \in (0, 1]}.}
+\item{STEP}{Numeric in (0, 1], damping factor.}
 
-\item{PATIENCE}{Stop after this many iterations with no improvement in the
-best convergence statistic (returning the best iterate seen). Ignored for
-\code{"max_iter"}.}
+\item{PATIENCE}{Positive integer, iterations without improvement before
+stopping.}
 
-\item{TERMINATION}{Stopping rule, based on the IB gap \eqn{\bar g} and the
-sample covariance \eqn{S} of the \eqn{H} simulated estimates:
-\code{"mahalanobis"} (default) stops when \eqn{\bar g^\top S^{-1} \bar g <}
-\code{PRECISION}\eqn{(1-\hat\delta)^2/H}, where \eqn{\hat\delta} is the ratio of
-successive steps in this norm, an estimate of the contraction rate, so that
-the numerical error is within \code{sqrt(PRECISION)} Monte Carlo standard
-deviations of the IB estimator; it never stops while \eqn{\hat\delta \ge 1};
-\code{"max_iter"} runs all \code{MAX_ITER} iterations with no convergence or stall
-stop and returns the best iterate seen. Either way, an update leaving the
-box stops the IB.}
+\item{TERMINATION}{\code{"mahalanobis"} (convergence test) or \code{"max_iter"} (run
+all iterations).}
 
-\item{PRECISION}{Squared tolerance of \code{"mahalanobis"}, in units of the Monte
-Carlo variance \eqn{1/H}.}
+\item{PRECISION}{Positive numeric, tolerance of the \code{"mahalanobis"} test.}
 
-\item{NCORES}{Number of cores to be passed to \code{\link[mirai:daemons]{mirai::daemons()}}. Default \code{1} runs serially.
-Values \verb{> 1} for parallel computations across the H simulated datasets at each iteration.
-Also used for the Jacobian behind \link[=vcov.accmeta_ib]{vcov()}.}
+\item{NCORES}{Positive integer, parallel workers; \code{1} runs serially.}
 
-\item{VCOV_H}{Number of datasets simulated at the IB estimate to compute the Jacobian behind
-\link[=vcov.accmeta_ib]{vcov()}.}
+\item{VCOV_H}{Integer greater than 18, simulated datasets for the Jacobian.}
 
-\item{VCOV_N_NODES}{Number of quadrature nodes per dimension of the TGLMM score used for the
-Jacobian. See \code{\link[=fit_tglmm]{fit_tglmm()}}.}
+\item{VCOV_N_NODES}{Integer, at least 2, quadrature nodes per dimension for
+the Jacobian.}
 
-\item{VCOV_N_ITER}{Number of Newton steps locating the integrand mode in the TGLMM score used
-for the Jacobian. See \code{\link[=fit_tglmm]{fit_tglmm()}}.}
+\item{VCOV_N_ITER}{Positive integer, Newton steps for the Jacobian.}
 
-\item{BOX_SD}{Range of the random-effect standard deviations; an IB update leaving it stops
-the IB. With \code{WORKPAR = "PinheiroBates"}, range of the diagonal of the Cholesky factor.}
+\item{BOX_SD}{Numeric vector of length 2, lower and upper bound of the
+standard deviations.}
 
-\item{BOX_COR}{Bound on the absolute partial correlations; an IB update leaving it stops the
-IB. With \code{WORKPAR = "PinheiroBates"}, the off-diagonal Cholesky entries are bounded by
-\code{BOX_SD[2]}.}
+\item{BOX_COR}{Numeric in (0, 1), bound on the absolute correlations.}
 
-\item{BOX_MU}{Bound on the absolute mean logits; an IB update leaving it stops the IB.}
+\item{BOX_MU}{Positive numeric, bound on the absolute means.}
 }
 \value{
-An object of class \code{accmeta_ib_control} to be passed to \code{\link[=fit_ib]{fit_ib()}} via \code{CONTROL} argumnet.
+Object of class \code{accmeta_ib_control}.
 }
 \description{
-Build the \code{CONTROL} object passed to \code{\link[=fit_ib]{fit_ib()}}.
+Set the iterative bootstrap options
 }
 \examples{
 set_ib_control()

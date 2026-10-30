@@ -2,29 +2,22 @@
 % Please edit documentation in R/utils.R
 \name{theta2list}
 \alias{theta2list}
-\title{Unpack the working parameter vector}
+\title{Unpack the parameter vector}
 \usage{
 theta2list(THETA)
 }
 \arguments{
-\item{THETA}{Numeric vector of length 9. Entries 1 to 3 are the random-effects
-means \eqn{(\bar\eta, \bar\xi, \bar\gamma)}. Entries 4 to 9 are the
-log-Cholesky factor of \eqn{\Sigma_3} in row-major lower-triangular order
-\eqn{(log(L_{11}), L_{21}, log(L_{22}), L_{31}, L_{32}, log(L_{33})}).
-Length 12 for skew-normal random effects, in the original parameterisation
-of \code{\link[sn:dp2op]{sn::dp2op()}}: entries 1 to 3 are then the location, 4 to 9 the
-log-Cholesky factor of \eqn{\Psi} and 10 to 12 the slant \eqn{\lambda};
-the list then reports the mean, the covariance and \code{SKEW}, the marginal
-skewness of each component.}
+\item{THETA}{Numeric vector of length 9 (means of \code{eta}, \code{xi}, \code{gamma}, then
+log-Cholesky entries \verb{log L11}, \code{L21}, \verb{log L22}, \code{L31}, \code{L32}, \verb{log L33}),
+5 (means of \code{eta}, \code{xi}, then \verb{log L11}, \code{L21}, \verb{log L22}) or 12 (skew-normal:
+the length-9 layout plus three slants).}
 }
 \value{
-A list with two components: \code{MU}, the length-3 mean vector, and
-\code{SIGMA}, the 3x3 positive-definite covariance matrix. Both are named after
-the logit-scale components \code{eta}, \code{xi} and \code{gamma}.
+List with \code{MU} (named numeric, length 3 or 2) and \code{SIGMA} (named
+covariance matrix); for length 12 also \code{SKEW} (named numeric, length 3).
 }
 \description{
-Maps the working parameter vector \code{THETA} onto its interpretable
-components: the random-effects mean vector and covariance matrix.
+Unpack the parameter vector
 }
 \examples{
 theta2list(c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931))

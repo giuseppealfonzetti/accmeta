@@ -2,7 +2,7 @@
 % Please edit documentation in R/IB.R
 \name{fit_ib}
 \alias{fit_ib}
-\title{Iterative bootstrap bias correction for TLMM}
+\title{Fit by iterative bootstrap}
 \usage{
 fit_ib(
   DATA,
@@ -10,42 +10,38 @@ fit_ib(
   PRIOR = set_prior(),
   WORKPAR = c("Joe", "PinheiroBates"),
   SEEDS = NULL,
-  VCOV = FALSE
+  VCOV = FALSE,
+  MODEL = c("trivariate", "bivariate")
 )
 }
 \arguments{
-\item{DATA}{An \code{accmeta_data} object, as returned by \code{\link[=set_meta_data]{set_meta_data()}},
-with \code{CC > 0}.}
+\item{DATA}{An \code{accmeta_data} object from \code{\link[=set_meta_data]{set_meta_data()}} with \code{CC > 0}.}
 
-\item{CONTROL}{Iterative-bootstrap control object from \code{\link[=set_ib_control]{set_ib_control()}}.}
+\item{CONTROL}{An \code{accmeta_ib_control} object from \code{\link[=set_ib_control]{set_ib_control()}}.}
 
-\item{PRIOR}{Prior on \eqn{\Sigma_3}, as returned by \code{\link[=set_prior]{set_prior()}}.}
+\item{PRIOR}{An \code{accmeta_prior} object from \code{\link[=set_prior]{set_prior()}}.}
 
-\item{WORKPAR}{Working scale for the matching equation and the
-update: \code{"PinheiroBates"} based on the log-Cholesky decomposition,
-or \code{"Joe"} (default) based on unconstrained partial correlations. Also
-passed to the auxiliary \code{\link[=fit_tlmm]{fit_tlmm()}} fits.}
+\item{WORKPAR}{\code{"Joe"} or \code{"PinheiroBates"}, covariance coordinates.}
 
-\item{SEEDS}{Integer vector of length \code{H} seeding the simulated datasets. If
-\code{NULL}, drawn once and then held fixed, so serial and parallel runs agree.
-When \code{NULL}, the seeds are drawn from the caller's RNG, which is the only
-change \code{fit_ib()} makes to the caller's RNG state.}
+\item{SEEDS}{Integer vector of length \code{CONTROL$H}, or \code{NULL} to draw them from
+the caller's random number generator.}
 
-\item{VCOV}{If \code{TRUE}, also computes the Jacobian at the estimate, stored as \code{JACOBIAN}, which
-\link[=vcov.accmeta_ib]{vcov()} and \link[=confint.accmeta_ib]{confint()} need. Its settings are the
-\verb{VCOV_*} entries of \code{\link[=set_ib_control]{set_ib_control()}}. It can be added later with
-\link[=update.accmeta_ib]{update()}.}
+\item{VCOV}{Logical, also compute the Jacobian, stored as \code{JACOBIAN}.}
+
+\item{MODEL}{\code{"trivariate"} or \code{"bivariate"}.}
 }
 \value{
-An \code{accmeta_ib} object. \code{STOP} says why the iteration ended: \code{"converged"}
-(the convergence test passed), \code{"stall"} (no improvement for \code{PATIENCE} iterations),
-\code{"boundary"} (the next update would leave the box of \code{\link[=set_ib_control]{set_ib_control()}}, in which case
-\code{THETA} is the last iterate inside it) or \code{"maxit"}, in which case \code{THETA} is the last
-iterate. The TLMM start is clamped into the box. \code{RATIO} is the ratio of successive steps,
-an empirical contraction rate.
+Object of class \code{accmeta_ib}, a list with \code{THETA} (numeric, length 9
+or 5), \code{PI_HAT} (numeric, auxiliary estimate), \code{N_ITER} (integer),
+\code{CONVERGED} (logical), \code{STOP} (\code{"converged"}, \code{"stall"}, \code{"boundary"}
+or \code{"maxit"}), \code{RESIDUAL} (numeric), \code{PROGRESS}, \code{THRESHOLD}, \code{FAIL},
+\code{DEGEN}, \code{RATIO} (numeric vectors, one entry per iteration), \code{PATH}, \code{GAP},
+\code{SE} (numeric matrices, one row per iteration), \code{SEEDS}, \code{PRIOR}, \code{CONTROL},
+\code{WORKPAR}, \code{DATA}, \code{MODEL}, \code{ESTIMATOR}, and \code{JACOBIAN} (list) when
+\code{VCOV = TRUE}.
 }
 \description{
-Iterative bootstrap bias correction for TLMM
+Fit by iterative bootstrap
 }
 \examples{
 th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
