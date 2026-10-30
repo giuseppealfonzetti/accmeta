@@ -85,7 +85,7 @@ test_that("STOP says which rule ended it", {
 
   out_of_budget <- fit_ib(
     d, CONTROL = set_ib_control(
-      H = 30, MAX_ITER = 3, PRECISION = 1e-12
+      H = 30, MAX_ITER = 3, TOL = 1e-12
     ), SEEDS = 1:30
   )
   expect_identical(out_of_budget$STOP, "maxit")
@@ -93,7 +93,7 @@ test_that("STOP says which rule ended it", {
 
   met <- fit_ib(
     d, CONTROL = set_ib_control(
-      H = 30, MAX_ITER = 3, PRECISION = 1e6
+      H = 30, MAX_ITER = 3, TOL = 1e6
     ), SEEDS = 1:30
   )
   expect_identical(met$STOP, "converged")
@@ -102,7 +102,7 @@ test_that("STOP says which rule ended it", {
 
   flat <- fit_ib(
     d, CONTROL = set_ib_control(
-      H = 30, MAX_ITER = 25, PRECISION = 1e-12, STEP = 0.1
+      H = 30, MAX_ITER = 25, TOL = 1e-12, STEP = 0.1
     ), SEEDS = 1:30
   )
   expect_true(flat$STOP %in% c("stall", "maxit"))
@@ -230,7 +230,7 @@ test_that("max_iter runs the whole budget past the early stops", {
   expect_equal(f$THETA, f$PATH[which.min(f$PROGRESS), ])
 })
 
-test_that("mahalanobis scales PRECISION by the estimated contraction", {
+test_that("mahalanobis scales TOL by the estimated contraction", {
   set.seed(1)
   d <- set_meta_data(sim_data(15, th, rep(100, 15)), CC = 0.5)
   f <- fit_ib(

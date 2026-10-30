@@ -17,7 +17,7 @@ set_control(
   STEP = NULL,
   PATIENCE = NULL,
   TERMINATION = NULL,
-  PRECISION = NULL,
+  TOL = NULL,
   NCORES = NULL,
   VCOV_H = NULL,
   VCOV_N_NODES = NULL,
@@ -60,7 +60,8 @@ stopping.}
 \item{TERMINATION}{\code{"mahalanobis"} (convergence test) or \code{"max_iter"} (run
 all iterations).}
 
-\item{PRECISION}{Positive numeric, tolerance of the \code{"mahalanobis"} test.}
+\item{TOL}{Positive numeric, squared tolerance of the \code{"mahalanobis"} test, in
+Monte Carlo variance units; smaller values stop later.}
 
 \item{NCORES}{Positive integer, parallel workers; \code{1} runs serially.}
 

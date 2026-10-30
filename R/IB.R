@@ -173,7 +173,7 @@ fit_ib <- function(
     threshold <- if (budget_only) {
       NA
     } else {
-      (h_ok - 1) * CONTROL$PRECISION / h_ok * (1 - delta_m)^2
+      (h_ok - 1) * CONTROL$TOL / h_ok * (1 - delta_m)^2
     }
 
     r2 <- t2 / (h_ok - 1)

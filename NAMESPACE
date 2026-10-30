@@ -3,6 +3,7 @@
 S3method(coef,accmeta_fit)
 S3method(confint,accmeta_fit)
 S3method(confint,accmeta_ib)
+S3method(plot,accmeta_ib)
 S3method(print,accmeta_data)
 S3method(print,accmeta_fit)
 S3method(print,accmeta_ib)
@@ -24,6 +25,7 @@ export(sim_data)
 export(theta2dp)
 export(theta2joe)
 export(theta2list)
+importFrom(graphics,plot)
 importFrom(stats,
   coef,
   confint,

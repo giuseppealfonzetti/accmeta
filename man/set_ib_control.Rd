@@ -10,7 +10,7 @@ set_ib_control(
   STEP = 1,
   PATIENCE = 30L,
   TERMINATION = c("mahalanobis", "max_iter"),
-  PRECISION = 1,
+  TOL = 1,
   NCORES = 1L,
   VCOV_H = 1000,
   VCOV_N_NODES = 7L,
@@ -33,7 +33,8 @@ stopping.}
 \item{TERMINATION}{\code{"mahalanobis"} (convergence test) or \code{"max_iter"} (run
 all iterations).}
 
-\item{PRECISION}{Positive numeric, tolerance of the \code{"mahalanobis"} test.}
+\item{TOL}{Positive numeric, squared tolerance of the \code{"mahalanobis"} test, in
+Monte Carlo variance units; smaller values stop later.}
 
 \item{NCORES}{Positive integer, parallel workers; \code{1} runs serially.}
 

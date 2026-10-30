@@ -237,7 +237,8 @@ joe2theta <- function(JOEPAR) {
 #'   stopping.
 #' @param TERMINATION `"mahalanobis"` (convergence test) or `"max_iter"` (run
 #'   all iterations).
-#' @param PRECISION Positive numeric, tolerance of the `"mahalanobis"` test.
+#' @param TOL Positive numeric, squared tolerance of the `"mahalanobis"` test, in
+#'   Monte Carlo variance units; smaller values stop later.
 #' @param NCORES Positive integer, parallel workers; `1` runs serially.
 #' @param VCOV_H Integer greater than 18, simulated datasets for the Jacobian.
 #' @param VCOV_N_NODES Integer, at least 2, quadrature nodes per dimension for
@@ -262,7 +263,7 @@ set_ib_control <- function(
   STEP = 1,
   PATIENCE = 30L,
   TERMINATION = c("mahalanobis", "max_iter"),
-  PRECISION = 1,
+  TOL = 1,
   NCORES = 1L,
   VCOV_H = 1000,
   VCOV_N_NODES = 7L,
@@ -285,9 +286,9 @@ set_ib_control <- function(
     is.numeric(PATIENCE),
     length(PATIENCE) == 1,
     PATIENCE >= 1,
-    is.numeric(PRECISION),
-    length(PRECISION) == 1,
-    PRECISION > 0,
+    is.numeric(TOL),
+    length(TOL) == 1,
+    TOL > 0,
     is.numeric(NCORES),
     length(NCORES) == 1,
     NCORES >= 1,
@@ -318,7 +319,7 @@ set_ib_control <- function(
     STEP = STEP,
     PATIENCE = PATIENCE,
     TERMINATION = TERMINATION,
-    PRECISION = PRECISION,
+    TOL = TOL,
     NCORES = NCORES,
     VCOV_H = VCOV_H,
     VCOV_N_NODES = VCOV_N_NODES,

@@ -110,7 +110,7 @@ set_control <- function(
   STEP = NULL,
   PATIENCE = NULL,
   TERMINATION = NULL,
-  PRECISION = NULL,
+  TOL = NULL,
   NCORES = NULL,
   VCOV_H = NULL,
   VCOV_N_NODES = NULL,

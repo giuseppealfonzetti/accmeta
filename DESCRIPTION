@@ -18,8 +18,10 @@ LinkingTo:
     RcppEigen,
     TMB
 Imports:
+    graphics,
     statmod,
     stats,
+    tinyplot (>= 0.8.0),
     TMB (>= 1.7.15),
     ucminf,
     withr (>= 2.5.0)

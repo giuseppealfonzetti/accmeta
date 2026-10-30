@@ -8,7 +8,7 @@ far <- matrix(
 test_that("the mode is found for a far study", {
   d <- set_meta_data(far)
   obj <- fit_tglmm(
-    d, THETA_START = th, N_NODES = 15L, PRIOR = set_prior(4),
+    d, THETA_START = th, N_NODES = 15L, PRIOR = set_prior(4, Inf),
     CONTROL = list(maxeval = 1)
   )$OBJ
   expect_equal(obj$fn(th), 355.1859, tolerance = 1e-5)
@@ -62,7 +62,7 @@ test_that("the prior adds exactly the Wishart terms", {
 test_that("fit_tlmm reproduces its recorded fit", {
   set.seed(1)
   d <- set_meta_data(sim_data(50, th, rep(100, 50)), CC = 0.5)
-  f <- fit_tlmm(d, PRIOR = set_prior(4))
+  f <- fit_tlmm(d, PRIOR = set_prior(4, Inf))
   expect_equal(f$NLL, 164.9292, tolerance = 1e-5)
   expect_equal(f$THETA[1:3], c(2.57542, -1.90384, -0.37812), tolerance = 1e-4)
   expect_lt(max(abs(as.numeric(f$OBJ$gr(f$THETA)))), 1e-4)

@@ -120,8 +120,7 @@ ib <- fit_meta_model(
 ```
 
 `update(ib, VCOV = TRUE)` adds the Jacobian to an existing fit, using the fit's `CONTROL`.
-`vcov()` and `confint()` work in the working coordinates of the IB, i.e the means, the log
-standard deviations and the Fisher-z partial correlations.
+`vcov()` and `confint()` work in the working coordinates of the IB, i.e the means, the log standard deviations and the Fisher-z partial correlations.
 
 ```{r ib-ci}
 sqrt(diag(vcov(ib)))
@@ -139,4 +138,11 @@ Intervals mapped onto the reporting scale via
 
 ```{r ib-reporting}
 confint(ib, SCALE = "reporting")
+```
+
+Visual diagnostics
+
+```{r}
+plot(ib, WHICH="path")
+plot(ib, WHICH="convergence")
 ```

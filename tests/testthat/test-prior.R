@@ -5,7 +5,7 @@ test_that("set_prior stores what it is given", {
   expect_null(p$DEGREES)
   expect_null(formals(set_prior)$DEGREES)
   expect_identical(set_prior(3)$DEGREES, 3)
-  expect_identical(p$SCALE, Inf)
+  expect_identical(p$SCALE, 100)
   expect_identical(set_prior(4)$DEGREES, 4)
   expect_identical(set_prior(DEGREES = 6)$DEGREES, 6)
   expect_identical(set_prior(SCALE = 100)$SCALE, 100)
