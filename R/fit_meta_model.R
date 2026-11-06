@@ -7,6 +7,8 @@
 #' @param PRIOR An `accmeta_prior` object from [set_prior()].
 #' @param CONTROL An `accmeta_control` object from [set_control()], built for the
 #'   same `ESTIMATOR`.
+#' @param VCOV Logical, compute the Jacobian needed by [vcov()] and [confint()].
+#'   `"ib"` only.
 #'
 #' @return Object of class `accmeta_ib` for `"ib"`, otherwise `accmeta_tlmm`,
 #'   `accmeta_tglmm`, `accmeta_blmm` or `accmeta_bglmm`, with the components
@@ -34,11 +36,15 @@ fit_meta_model <- function(
   MODEL = c("trivariate", "bivariate"),
   ESTIMATOR = c("ib", "glmm", "lmm"),
   PRIOR = set_prior(),
-  CONTROL = set_control(ESTIMATOR)
+  CONTROL = set_control(ESTIMATOR),
+  VCOV = FALSE
 ) {
   MODEL <- match.arg(MODEL)
   ESTIMATOR <- match.arg(ESTIMATOR)
   stopifnot(inherits(CONTROL, "accmeta_control"))
+  if (isTRUE(VCOV) && ESTIMATOR != "ib") {
+    stop("VCOV = TRUE is only used by ESTIMATOR = 'ib'.", call. = FALSE)
+  }
   if (CONTROL$ESTIMATOR != ESTIMATOR) {
     stop(
       "CONTROL was built for ESTIMATOR = '",
@@ -56,7 +62,7 @@ fit_meta_model <- function(
       PRIOR = PRIOR,
       WORKPAR = CONTROL$WORKPAR,
       SEEDS = CONTROL$SEEDS,
-      VCOV = CONTROL$VCOV,
+      VCOV = VCOV,
       MODEL = MODEL
     ))
   }
@@ -87,13 +93,11 @@ fit_meta_model <- function(
 #' @param N_ITER Positive integer, Newton steps for the integrand mode. Default
 #'   10. `"glmm"`.
 #' @param SEEDS Integer vector of length `H`, or `NULL` to draw them. `"ib"`.
-#' @param VCOV Logical, compute the Jacobian needed by [vcov()] and [confint()].
-#'   Default `FALSE`. `"ib"`.
 #'
 #' @examples
 #' set_control("lmm")
 #' set_control("glmm", N_NODES = 7L)
-#' set_control("ib", H = 200, VCOV = TRUE)
+#' set_control("ib", H = 200)
 #'
 #' @inheritParams set_ib_control
 #' @export
@@ -104,7 +108,6 @@ set_control <- function(
   N_NODES = NULL,
   N_ITER = NULL,
   SEEDS = NULL,
-  VCOV = NULL,
   H = NULL,
   MAX_ITER = NULL,
   STEP = NULL,
@@ -126,9 +129,9 @@ set_control <- function(
     ESTIMATOR,
     lmm = "MAXEVAL",
     glmm = c("MAXEVAL", "N_NODES", "N_ITER"),
-    ib = c("SEEDS", "VCOV", ib_opts)
+    ib = c("SEEDS", ib_opts)
   )
-  opts <- c("MAXEVAL", "N_NODES", "N_ITER", "SEEDS", "VCOV", ib_opts)
+  opts <- c("MAXEVAL", "N_NODES", "N_ITER", "SEEDS", ib_opts)
   given <- Filter(Negate(is.null), mget(opts))
   bad <- setdiff(names(given), allowed)
   if (length(bad) > 0) {
@@ -142,10 +145,8 @@ set_control <- function(
   }
   out <- list(ESTIMATOR = ESTIMATOR, WORKPAR = WORKPAR)
   if (ESTIMATOR == "ib") {
-    stopifnot(is.null(VCOV) || isTRUE(VCOV) || isFALSE(VCOV))
     out$IB <- do.call(set_ib_control, given[intersect(names(given), ib_opts)])
     out$SEEDS <- SEEDS
-    out$VCOV <- isTRUE(VCOV)
   } else {
     if (is.null(MAXEVAL)) {
       MAXEVAL <- 1000

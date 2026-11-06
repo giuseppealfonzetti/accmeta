@@ -79,6 +79,7 @@ tlmm <- fit_meta_model(d_cc, MODEL = "trivariate", ESTIMATOR = "lmm")
 tglmm <- fit_meta_model(d, MODEL = "trivariate", ESTIMATOR = "glmm")
 ib <- fit_meta_model(d_cc, MODEL = "trivariate", ESTIMATOR = "ib")
 ib
+
 ```
 
 `coef()` extract estimated parameters:
@@ -108,14 +109,15 @@ min(eigen(coef(tglmm)$SIGMA)$values)
 
 ## Inference for the IB estimate
 
-With `VCOV = TRUE` in `set_control()`, the IB also computes the Jacobian at the estimate.  `NCORES` spreads both the
+With `VCOV = TRUE` in `fit_meta_model()`, the IB also computes the Jacobian at the estimate.  `NCORES` spreads both the
 simulated fits of each iteration and the Jacobian draws for parallel computations
 ```{r ib-vcov}
 ib <- fit_meta_model(
   d_cc,
   MODEL = "trivariate",
   ESTIMATOR = "ib",
-  CONTROL = set_control("ib", VCOV = TRUE, NCORES = 4)
+  CONTROL = set_control("ib", NCORES = 4),
+  VCOV = TRUE
 )
 ```
 

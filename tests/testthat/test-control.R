@@ -5,7 +5,7 @@ test_that("set_ib_control stores what it is given and fills the rest", {
     "H", "MAX_ITER", "STEP", "PATIENCE", "TERMINATION", "TOL", "NCORES",
     "VCOV_H", "VCOV_N_NODES", "VCOV_N_ITER", "BOX_SD", "BOX_COR", "BOX_MU"
   ))
-  expect_identical(ctrl$H, 100)
+  expect_identical(ctrl$H, 1000)
   expect_null(ctrl$MAX_ITER)
   expect_identical(ctrl$BOX_SD, c(0.1, 10))
   expect_identical(ctrl$BOX_COR, 0.99)
@@ -13,7 +13,7 @@ test_that("set_ib_control stores what it is given and fills the rest", {
   expect_identical(ctrl$PATIENCE, 30L)
   expect_identical(ctrl$NCORES, 1L)
   expect_identical(ctrl$TERMINATION, "mahalanobis")
-  expect_identical(ctrl$TOL, 1)
+  expect_identical(ctrl$TOL, 0.1)
   expect_no_warning(set_ib_control(H = 10, TERMINATION = "max_iter"))
   expect_no_warning(set_ib_control(H = 10))
   expect_identical(
@@ -21,7 +21,7 @@ test_that("set_ib_control stores what it is given and fills the rest", {
     0.5
   )
   expect_identical(set_ib_control(MAX_ITER = 5)$MAX_ITER, 5)
-  expect_identical(set_ib_control(MAX_ITER = 5)$H, 100)
+  expect_identical(set_ib_control(MAX_ITER = 5)$H, 1000)
 })
 
 test_that("set_ib_control rejects impossible values", {

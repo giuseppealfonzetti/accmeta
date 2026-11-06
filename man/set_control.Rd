@@ -11,7 +11,6 @@ set_control(
   N_NODES = NULL,
   N_ITER = NULL,
   SEEDS = NULL,
-  VCOV = NULL,
   H = NULL,
   MAX_ITER = NULL,
   STEP = NULL,
@@ -44,9 +43,6 @@ estimators.}
 10. \code{"glmm"}.}
 
 \item{SEEDS}{Integer vector of length \code{H}, or \code{NULL} to draw them. \code{"ib"}.}
-
-\item{VCOV}{Logical, compute the Jacobian needed by \code{\link[=vcov]{vcov()}} and \code{\link[=confint]{confint()}}.
-Default \code{FALSE}. \code{"ib"}.}
 
 \item{H}{Integer greater than 9, simulated datasets per iteration.}
 
@@ -85,6 +81,6 @@ Set the estimator options
 \examples{
 set_control("lmm")
 set_control("glmm", N_NODES = 7L)
-set_control("ib", H = 200, VCOV = TRUE)
+set_control("ib", H = 200)
 
 }

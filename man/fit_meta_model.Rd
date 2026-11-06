@@ -9,7 +9,8 @@ fit_meta_model(
   MODEL = c("trivariate", "bivariate"),
   ESTIMATOR = c("ib", "glmm", "lmm"),
   PRIOR = set_prior(),
-  CONTROL = set_control(ESTIMATOR)
+  CONTROL = set_control(ESTIMATOR),
+  VCOV = FALSE
 )
 }
 \arguments{
@@ -24,6 +25,9 @@ fit_meta_model(
 
 \item{CONTROL}{An \code{accmeta_control} object from \code{\link[=set_control]{set_control()}}, built for the
 same \code{ESTIMATOR}.}
+
+\item{VCOV}{Logical, compute the Jacobian needed by \code{\link[=vcov]{vcov()}} and \code{\link[=confint]{confint()}}.
+\code{"ib"} only.}
 }
 \value{
 Object of class \code{accmeta_ib} for \code{"ib"}, otherwise \code{accmeta_tlmm},

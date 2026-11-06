@@ -5,12 +5,12 @@
 \title{Set the iterative bootstrap options}
 \usage{
 set_ib_control(
-  H = 100,
+  H = 1000,
   MAX_ITER = NULL,
   STEP = 1,
   PATIENCE = 30L,
   TERMINATION = c("mahalanobis", "max_iter"),
-  TOL = 1,
+  TOL = 0.1,
   NCORES = 1L,
   VCOV_H = 1000,
   VCOV_N_NODES = 7L,

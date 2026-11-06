@@ -245,7 +245,7 @@ test_that("mahalanobis scales TOL by the estimated contraction", {
   expect_true(f$CONVERGED)
   expect_lt(f$N_ITER, 30)
   expect_true(is.na(f$THRESHOLD[1]))
-  expect_equal(f$THRESHOLD[-1], (h_ok[-1] - 1) / h_ok[-1] * (1 - delta)^2)
+  expect_equal(f$THRESHOLD[-1], (h_ok[-1] - 1) * f$CONTROL$TOL / h_ok[-1] * (1 - delta)^2)
   expect_true(tail(pass, 1))
   expect_false(any(head(pass, -1)))
   expect_equal(f$THETA, f$PATH[f$N_ITER, ])

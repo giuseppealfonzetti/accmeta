@@ -100,9 +100,9 @@ tlmm <- fit_meta_model(d_cc, MODEL = "trivariate", ESTIMATOR = "lmm")
 tglmm <- fit_meta_model(d, MODEL = "trivariate", ESTIMATOR = "glmm")
 ib <- fit_meta_model(d_cc, MODEL = "trivariate", ESTIMATOR = "ib")
 ib
-#> <accmeta_ib> 6 iterations, stopped on converged 
+#> <accmeta_ib> 13 iterations, stopped on converged 
 #>    SE    SP  PREV 
-#> 0.940 0.906 0.372
+#> 0.941 0.904 0.380
 ```
 
 `coef()` extract estimated parameters:
@@ -130,14 +130,14 @@ coef(tglmm)
 #> gamma 0.5883872 0.1849338 0.6532612
 coef(ib)
 #> $MU
-#>        eta         xi      gamma 
-#>  2.7468931 -2.2684758 -0.5218094 
+#>       eta        xi     gamma 
+#>  2.767491 -2.238352 -0.489474 
 #> 
 #> $SIGMA
 #>             eta        xi     gamma
-#> eta   0.7831908 0.3876533 0.6321118
-#> xi    0.3876533 0.4738952 0.2669153
-#> gamma 0.6321118 0.2669153 0.6963463
+#> eta   0.7216418 0.3422498 0.6110238
+#> xi    0.3422498 0.4498147 0.2468259
+#> gamma 0.6110238 0.2468259 0.7043490
 ```
 
 All models are estimated, by default, with the recommended Wishart
@@ -169,16 +169,17 @@ min(eigen(coef(tglmm)$SIGMA)$values)
 
 ## Inference for the IB estimate
 
-With `VCOV = TRUE` in `set_control()`, the IB also computes the Jacobian
-at the estimate. `NCORES` spreads both the simulated fits of each
-iteration and the Jacobian draws for parallel computations
+With `VCOV = TRUE` in `fit_meta_model()`, the IB also computes the
+Jacobian at the estimate. `NCORES` spreads both the simulated fits of
+each iteration and the Jacobian draws for parallel computations
 
 ``` r
 ib <- fit_meta_model(
   d_cc,
   MODEL = "trivariate",
   ESTIMATOR = "ib",
-  CONTROL = set_control("ib", VCOV = TRUE, NCORES = 4)
+  CONTROL = set_control("ib", NCORES = 4),
+  VCOV = TRUE
 )
 ```
 
@@ -190,31 +191,31 @@ the Fisher-z partial correlations.
 ``` r
 sqrt(diag(vcov(ib)))
 #>       mu_eta        mu_xi     mu_gamma   log_sd_eta    log_sd_xi log_sd_gamma 
-#>    0.3381176    0.2292925    0.2358696    0.3724484    0.3237534    0.2228914 
+#>    0.2994012    0.2132412    0.2230208    0.3766134    0.3377043    0.2262472 
 #>      z_rho12      z_rho13    z_rho23_1 
-#>    0.5308770    0.6614506    0.6545069
+#>    0.6588853    0.8761187    1.3124542
 confint(ib)
 #>                   2.5 %      97.5 %
-#> mu_eta        2.1503178  3.47571441
-#> mu_xi        -2.7023472 -1.80353726
-#> mu_gamma     -0.9522175 -0.02762567
-#> log_sd_eta   -0.8372098  0.62276103
-#> log_sd_xi    -1.0252907  0.24379937
-#> log_sd_gamma -0.6109355  0.26278256
-#> z_rho12      -0.4591485  1.62185118
-#> z_rho13      -0.2059883  2.38685055
-#> z_rho23_1    -1.2725161  1.29310374
+#> mu_eta        2.1730228  3.34665373
+#> mu_xi        -2.6459458 -1.81005582
+#> mu_gamma     -0.9212576 -0.04703203
+#> log_sd_eta   -0.9307114  0.54558600
+#> log_sd_xi    -1.1080275  0.21574899
+#> log_sd_gamma -0.6282998  0.25857287
+#> z_rho12      -0.5142852  2.06849763
+#> z_rho13      -0.4062657  3.02805648
+#> z_rho23_1    -2.8952539  2.24947219
 confint(ib, METHOD = "basic")
 #>                    2.5 %      97.5 %
-#> mu_eta        2.14263456  3.43408168
-#> mu_xi        -2.68121329 -1.80020901
-#> mu_gamma     -0.95044351 -0.02483661
-#> log_sd_eta   -0.76825169  0.67019770
-#> log_sd_xi    -0.94234534  0.36908646
-#> log_sd_gamma -0.55954167  0.31354289
-#> z_rho12      -0.38134802  1.65300997
-#> z_rho13      -0.09957652  2.34876801
-#> z_rho23_1    -1.33055518  1.07253382
+#> mu_eta        2.13725205  3.33763536
+#> mu_xi        -2.63693755 -1.80229542
+#> mu_gamma     -0.90446121 -0.06464601
+#> log_sd_eta   -0.88209132  0.59439153
+#> log_sd_xi    -1.04223906  0.29682027
+#> log_sd_gamma -0.57384036  0.31165395
+#> z_rho12      -0.36359406  2.16328989
+#> z_rho13      -0.09497695  3.11619209
+#> z_rho23_1    -3.26635299  1.60501379
 ```
 
 Intervals mapped onto the natural scale via
@@ -222,15 +223,15 @@ Intervals mapped onto the natural scale via
 ``` r
 confint(ib, SCALE = "natural")
 #>                    2.5 %      97.5 %
-#> mu_eta         2.1503178  3.47571441
-#> mu_xi         -2.7023472 -1.80353726
-#> mu_gamma      -0.9522175 -0.02762567
-#> sd_eta         0.4329168  1.86406769
-#> sd_xi          0.3586922  1.27608829
-#> sd_gamma       0.5428428  1.30054390
-#> rho_eta_xi    -0.4293899  0.92489231
-#> rho_eta_gamma -0.2031235  0.98324347
-#> rho_xi_gamma  -0.3163638  0.84242165
+#> mu_eta         2.1730228  3.34665373
+#> mu_xi         -2.6459458 -1.81005582
+#> mu_gamma      -0.9212576 -0.04703203
+#> sd_eta         0.3942731  1.72561930
+#> sd_xi          0.3302097  1.24079089
+#> sd_gamma       0.5334981  1.29508053
+#> rho_eta_xi    -0.4732773  0.96856058
+#> rho_eta_gamma -0.3852974  0.99532397
+#> rho_xi_gamma  -0.3247663  0.85932161
 ```
 
 Intervals mapped onto the reporting scale via
@@ -238,15 +239,15 @@ Intervals mapped onto the reporting scale via
 ``` r
 confint(ib, SCALE = "reporting")
 #>                    2.5 %    97.5 %
-#> sensitivity    0.8956985 0.9699888
-#> specificity    0.8585790 0.9371650
-#> prevalence     0.2784391 0.4930940
-#> sd_eta         0.4329168 1.8640677
-#> sd_xi          0.3586922 1.2760883
-#> sd_gamma       0.5428428 1.3005439
-#> rho_eta_xi    -0.4293899 0.9248923
-#> rho_eta_gamma -0.2031235 0.9832435
-#> rho_xi_gamma  -0.3163638 0.8424216
+#> sensitivity    0.8978007 0.9659951
+#> specificity    0.8593686 0.9337607
+#> prevalence     0.2847017 0.4882442
+#> sd_eta         0.3942731 1.7256193
+#> sd_xi          0.3302097 1.2407909
+#> sd_gamma       0.5334981 1.2950805
+#> rho_eta_xi    -0.4732773 0.9685606
+#> rho_eta_gamma -0.3852974 0.9953240
+#> rho_xi_gamma  -0.3247663 0.8593216
 ```
 
 Visual diagnostics
