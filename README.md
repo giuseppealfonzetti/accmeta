@@ -22,10 +22,11 @@ intervals, built from a simulated Jacobian of the TGLMM score.
 
 ## Installation
 
-You can install the package via
+You can install the package via `{pak}`or `{remotes}`
 
 ``` r
-pak::pkg_install("giuseppealfonzetti/accmeta")
+pak::pak("giuseppealfonzetti/accmeta")
+remotes::install_github("giuseppealfonzetti/accmeta")
 ```
 
 ## Example
