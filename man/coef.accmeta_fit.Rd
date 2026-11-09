@@ -2,13 +2,24 @@
 % Please edit documentation in R/methods.R
 \name{coef.accmeta_fit}
 \alias{coef.accmeta_fit}
+\alias{summary.accmeta_fit}
+\alias{print.summary.accmeta_fit}
 \alias{print.accmeta_fit}
 \alias{print.accmeta_ib}
 \alias{vcov.accmeta_fit}
 \alias{confint.accmeta_fit}
 \title{Methods for fitted objects}
 \usage{
-\method{coef}{accmeta_fit}(object, ...)
+\method{coef}{accmeta_fit}(object, SCALE = NULL, ...)
+
+\method{summary}{accmeta_fit}(
+  object,
+  SCALE = c("reporting", "natural", "working"),
+  level = 0.95,
+  ...
+)
+
+\method{print}{summary.accmeta_fit}(x, ...)
 
 \method{print}{accmeta_fit}(x, ...)
 
@@ -29,23 +40,26 @@
 \item{object}{A fitted object from \code{\link[=fit_meta_model]{fit_meta_model()}}, \code{\link[=fit_tlmm]{fit_tlmm()}},
 \code{\link[=fit_tglmm]{fit_tglmm()}} or \code{\link[=fit_ib]{fit_ib()}}.}
 
+\item{SCALE}{\code{"working"}, \code{"natural"} or \code{"reporting"}. In \code{coef()}, \code{NULL}
+returns the \code{MU} and \code{SIGMA} list.}
+
 \item{...}{Ignored.}
+
+\item{level}{Numeric in (0, 1), confidence level.}
 
 \item{x}{A fitted object.}
 
 \item{TYPE}{\code{"sandwich"} or \code{"hessian"}.}
 
 \item{parm}{Character or integer vector, parameters to report. All by default.}
-
-\item{level}{Numeric in (0, 1), confidence level.}
-
-\item{SCALE}{\code{"working"}, \code{"natural"} or \code{"reporting"}.}
 }
 \value{
 \code{coef()}: list with \code{MU} (named numeric, length 3 or 2) and \code{SIGMA}
-(named covariance matrix). \code{vcov()}: named numeric matrix, one row and column
-per parameter. \code{confint()}: numeric matrix with one row per parameter and two
-columns. \code{print()}: \code{x}, invisibly.
+(named covariance matrix), or a named numeric vector matching the rows of
+\code{confint()} when \code{SCALE} is given. \code{vcov()}: named numeric matrix, one row and
+column per parameter. \code{confint()}: numeric matrix with one row per parameter
+and two columns. \code{summary()}: list with \code{TABLE} (estimates and intervals),
+\code{SCALE} and \code{NOTE}. \code{print()}: \code{x}, invisibly.
 }
 \description{
 Methods for fitted objects

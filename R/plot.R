@@ -30,15 +30,16 @@ plot.accmeta_ib <- function(
     conv <- data.frame(
       iterate = c(k, k),
       value = c(x$PROGRESS, x$THRESHOLD),
-      series = rep(c("step statistic", "threshold"), each = length(k))
+      series = rep(c("residual", "threshold"), each = length(k))
     )
     tinyplot::tinyplot(
       value ~ iterate | series,
       data = conv[is.finite(conv$value) & conv$value > 0, ],
       type = "o",
       lty = "by",
+      legend = list(title = NULL),
       log = "y",
-      ylab = "Mahalanobis step",
+      ylab = "Squared Mahalanobis residual",
       main = paste0("Stop: ", x$STOP, " after ", x$N_ITER, " iterations")
     )
   }
@@ -99,6 +100,7 @@ plot.accmeta_ib <- function(
       type = "o",
       pch = c(16, 4, NA)[keep],
       lty = c(1, 0, 2)[keep],
+      legend = FALSE,
       facet.args = list(free = TRUE),
       ylab = "Working coordinate",
       main = "Paths"

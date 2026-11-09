@@ -84,6 +84,54 @@ test_that("vcov and confint give sandwich and Hessian Wald intervals", {
   )
 })
 
+test_that("coef on a scale lines up with confint", {
+  set.seed(1)
+  tab <- sim_data(10, th, sample(40:200, 10, TRUE))
+  d <- set_meta_data(tab, CC = 0.5)
+  f <- fit_tlmm(d)
+  for (s in c("working", "natural", "reporting")) {
+    est <- coef(f, SCALE = s)
+    ci <- confint(f, SCALE = s)
+    expect_identical(names(est), rownames(ci))
+    expect_true(all(ci[, 1] < est & est < ci[, 2]))
+  }
+  mu <- coef(f)$MU
+  expect_equal(
+    unname(coef(f, SCALE = "reporting")[1:3]),
+    unname(plogis(c(mu[1], -mu[2], mu[3])))
+  )
+  expect_error(coef(f, SCALE = "wrong"))
+  joe <- fit_tlmm(d, WORKPAR = "Joe")
+  expect_equal(coef(joe, SCALE = "natural"), coef(f, SCALE = "natural"), tolerance = 1e-4)
+  biv <- fit_meta_model(d, MODEL = "bivariate", ESTIMATOR = "lmm")
+  expect_named(
+    coef(biv, SCALE = "reporting"),
+    rownames(confint(biv, SCALE = "reporting"))
+  )
+  expect_length(coef(biv, SCALE = "reporting"), 5)
+})
+
+test_that("summary combines coef and confint", {
+  set.seed(1)
+  tab <- sim_data(10, th, sample(40:200, 10, TRUE))
+  d <- set_meta_data(tab, CC = 0.5)
+  f <- fit_tlmm(d)
+  s <- summary(f)
+  expect_identical(s$SCALE, "reporting")
+  expect_null(s$NOTE)
+  expect_equal(s$TABLE[, 1], coef(f, SCALE = "reporting"))
+  expect_equal(s$TABLE[, 2:3], confint(f, SCALE = "reporting"))
+  h <- summary(f, SCALE = "natural", TYPE = "hessian")
+  expect_equal(h$TABLE[, 2:3], confint(f, SCALE = "natural", TYPE = "hessian"))
+  expect_match(capture.output(print(s))[1], "reporting")
+
+  b <- fit_ib(d, CONTROL = set_ib_control(H = 10, MAX_ITER = 2, TERMINATION = "max_iter"), SEEDS = 1:10)
+  sb <- summary(b)
+  expect_true(all(is.na(sb$TABLE[, 2:3])))
+  expect_match(sb$NOTE, "VCOV")
+  expect_equal(sb$TABLE[, 1], coef(b, SCALE = "reporting"))
+})
+
 test_that("vcov refuses fits on the boundary", {
   set.seed(1)
   tab <- sim_data(10, th, sample(40:200, 10, TRUE))

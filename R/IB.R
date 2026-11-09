@@ -12,9 +12,9 @@
 #' @return Object of class `accmeta_ib`, a list with `THETA` (numeric, length 9
 #'   or 5), `PI_HAT` (numeric, auxiliary estimate), `N_ITER` (integer),
 #'   `CONVERGED` (logical), `STOP` (`"converged"`, `"stall"`, `"boundary"`
-#'   or `"maxit"`), `RESIDUAL` (numeric), `PROGRESS`, `THRESHOLD`, `FAIL`,
-#'   `DEGEN`, `RATIO` (numeric vectors, one entry per iteration), `PATH`, `GAP`,
-#'   `SE` (numeric matrices, one row per iteration), `SEEDS`, `PRIOR`, `CONTROL`,
+#'   or `"maxit"`), `RESIDUAL` (numeric), `PROGRESS` (numeric vector), `THRESHOLD`, `FAIL`, `DEGEN`, `RATIO` (numeric vectors, one
+#'   entry per iteration), `PATH`, `GAP`,
+#'   `SE` (numeric matrices), `SEEDS`, `PRIOR`, `CONTROL`,
 #'   `WORKPAR`, `DATA`, `MODEL`, `ESTIMATOR`, and `JACOBIAN` (list) when
 #'   `VCOV = TRUE`.
 #'
@@ -304,7 +304,11 @@ ib_from_work <- function(WORK, WORKPAR) {
 
 sim_like <- function(DATA, THETA) {
   m <- DATA$margins
-  design <- if (is.null(DATA$design)) rep("cohort", DATA$n_studies) else DATA$design
+  design <- if (is.null(DATA$design)) {
+    rep("cohort", DATA$n_studies)
+  } else {
+    DATA$design
+  }
   n1 <- if (length(THETA) == 5) {
     m[, "n1"]
   } else {

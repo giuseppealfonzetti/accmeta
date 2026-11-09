@@ -27,9 +27,11 @@ print.accmeta_data <- function(x, ...) {
 #' @param ... Ignored.
 #'
 #' @return `coef()`: list with `MU` (named numeric, length 3 or 2) and `SIGMA`
-#'   (named covariance matrix). `vcov()`: named numeric matrix, one row and column
-#'   per parameter. `confint()`: numeric matrix with one row per parameter and two
-#'   columns. `print()`: `x`, invisibly.
+#'   (named covariance matrix), or a named numeric vector matching the rows of
+#'   `confint()` when `SCALE` is given. `vcov()`: named numeric matrix, one row and
+#'   column per parameter. `confint()`: numeric matrix with one row per parameter
+#'   and two columns. `summary()`: list with `TABLE` (estimates and intervals),
+#'   `SCALE` and `NOTE`. `print()`: `x`, invisibly.
 #'
 #' @examples
 #' th <- c(2.94, -2.2, -0.4, 0.0953, 0.4, -0.5108, 0.3, 0.2, -0.6931)
@@ -41,8 +43,55 @@ print.accmeta_data <- function(x, ...) {
 #'
 #' @importFrom stats coef
 #' @export
-coef.accmeta_fit <- function(object, ...) {
-  theta2list(object$THETA)
+coef.accmeta_fit <- function(object, SCALE = NULL, ...) {
+  if (is.null(SCALE)) {
+    return(theta2list(object$THETA))
+  }
+  SCALE <- match.arg(SCALE, c("working", "natural", "reporting"))
+  workpar <- if (SCALE == "working") object$WORKPAR else "Joe"
+  work <- ib_to_work(object$THETA, workpar)
+  if (SCALE != "working") {
+    work <- rho_marginal(work)$THETA
+  }
+  nm <- ib_work_names(workpar, length(work))
+  scale_rows(matrix(work, ncol = 1), SCALE, nm)[, 1]
+}
+
+
+#' @rdname coef.accmeta_fit
+#' @export
+summary.accmeta_fit <- function(
+  object,
+  SCALE = c("reporting", "natural", "working"),
+  level = 0.95,
+  ...
+) {
+  SCALE <- match.arg(SCALE)
+  est <- coef(object, SCALE = SCALE)
+  note <- NULL
+  ci <- tryCatch(
+    confint(object, level = level, SCALE = SCALE, ...),
+    error = function(e) {
+      note <<- conditionMessage(e)
+      matrix(NA_real_, length(est), 2, dimnames = list(names(est), ci_names(level)))
+    }
+  )
+  structure(
+    list(TABLE = cbind(Estimate = est, ci), SCALE = SCALE, NOTE = note),
+    class = "summary.accmeta_fit"
+  )
+}
+
+
+#' @rdname coef.accmeta_fit
+#' @export
+print.summary.accmeta_fit <- function(x, ...) {
+  cat("Estimates on the", x$SCALE, "scale\n")
+  print(round(x$TABLE, 3))
+  if (!is.null(x$NOTE)) {
+    cat("Intervals unavailable:", x$NOTE, "\n")
+  }
+  invisible(x)
 }
 
 
@@ -177,7 +226,8 @@ confint.accmeta_ib <- function(
 
 
 #' @param TYPE `"sandwich"` or `"hessian"`.
-#' @param SCALE `"working"`, `"natural"` or `"reporting"`.
+#' @param SCALE `"working"`, `"natural"` or `"reporting"`. In `coef()`, `NULL`
+#'   returns the `MU` and `SIGMA` list.
 #' @param parm Character or integer vector, parameters to report. All by default.
 #' @param level Numeric in (0, 1), confidence level.
 #'
@@ -254,12 +304,10 @@ fit_vcov <- function(FIT, TYPE, WORKPAR) {
 }
 
 
-ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
+rho_marginal <- function(THETA) {
   p <- length(THETA)
-  m <- if (p == 5) 2 else 3
   g <- diag(p)
-  nm <- rownames(V)
-  if (SCALE != "working" && p == 9) {
+  if (p == 9) {
     r <- tanh(THETA[7:9])
     q <- sqrt((1 - r[1]^2) * (1 - r[2]^2))
     rho <- r[1] * r[2] + r[3] * q
@@ -272,8 +320,15 @@ ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
       (1 - rho^2)
     THETA[9] <- atanh(rho)
   }
+  list(THETA = THETA, G = g)
+}
+
+
+scale_rows <- function(X, SCALE, NM) {
+  p <- nrow(X)
+  m <- if (p == 5) 2 else 3
   if (SCALE != "working") {
-    nm <- c(
+    NM <- c(
       "mu_eta",
       "mu_xi",
       "mu_gamma",
@@ -285,8 +340,33 @@ ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
       "rho_xi_gamma"
     )
     if (p == 5) {
-      nm <- project(nm, "Joe")
+      NM <- project(NM, "Joe")
     }
+    X[m + seq_len(m), ] <- exp(X[m + seq_len(m), ])
+    X[(2 * m + 1):p, ] <- tanh(X[(2 * m + 1):p, ])
+  }
+  if (SCALE == "reporting") {
+    X[seq_len(m), ] <- stats::plogis(X[seq_len(m), ])
+    X[2, ] <- 1 - X[2, ncol(X):1]
+    NM[seq_len(m)] <- c("sensitivity", "specificity", "prevalence")[seq_len(m)]
+  }
+  rownames(X) <- NM
+  X
+}
+
+
+ci_names <- function(LEVEL) {
+  a <- (1 - LEVEL) / 2
+  paste(format(100 * c(a, 1 - a), trim = TRUE), "%")
+}
+
+
+ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
+  g <- diag(length(THETA))
+  if (SCALE != "working") {
+    nat <- rho_marginal(THETA)
+    THETA <- nat$THETA
+    g <- nat$G
   }
   a <- (1 - LEVEL) / 2
   ci <- if (is.null(DEV)) {
@@ -301,18 +381,7 @@ ci_table <- function(THETA, V, LEVEL, SCALE, DEV = NULL) {
         names = FALSE
       ))
   }
-  if (SCALE != "working") {
-    ci[m + seq_len(m), ] <- exp(ci[m + seq_len(m), ])
-    ci[(2 * m + 1):p, ] <- tanh(ci[(2 * m + 1):p, ])
-  }
-  if (SCALE == "reporting") {
-    ci[seq_len(m), ] <- stats::plogis(ci[seq_len(m), ])
-    ci[2, ] <- 1 - ci[2, 2:1]
-    nm[seq_len(m)] <- c("sensitivity", "specificity", "prevalence")[seq_len(m)]
-  }
-  dimnames(ci) <- list(
-    nm,
-    paste(format(100 * c(a, 1 - a), trim = TRUE), "%")
-  )
+  ci <- scale_rows(ci, SCALE, rownames(V))
+  colnames(ci) <- ci_names(LEVEL)
   ci
 }

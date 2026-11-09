@@ -170,6 +170,25 @@ min(eigen(coef(tglmm)$SIGMA)$values)
 
 ## Inference for the IB estimate
 
+A `summary()` call on a fitted object warns about interval inference not
+being available because of the Jacobian has not been computed yet.
+
+``` r
+summary(ib)
+#> Estimates on the reporting scale
+#>               Estimate 2.5 % 97.5 %
+#> sensitivity      0.941    NA     NA
+#> specificity      0.904    NA     NA
+#> prevalence       0.380    NA     NA
+#> sd_eta           0.849    NA     NA
+#> sd_xi            0.671    NA     NA
+#> sd_gamma         0.839    NA     NA
+#> rho_eta_xi       0.601    NA     NA
+#> rho_eta_gamma    0.857    NA     NA
+#> rho_xi_gamma     0.439    NA     NA
+#> Intervals unavailable: No Jacobian in the fit: use fit_ib(VCOV = TRUE) or update(fit, VCOV = TRUE).
+```
+
 With `VCOV = TRUE` in `fit_meta_model()`, the IB also computes the
 Jacobian at the estimate. `NCORES` spreads both the simulated fits of
 each iteration and the Jacobian draws for parallel computations
@@ -185,9 +204,10 @@ ib <- fit_meta_model(
 ```
 
 `update(ib, VCOV = TRUE)` adds the Jacobian to an existing fit, using
-the fit’s `CONTROL`. `vcov()` and `confint()` work in the working
-coordinates of the IB, i.e the means, the log standard deviations and
-the Fisher-z partial correlations.
+the fit’s `CONTROL`. `vcov()` is computed on the working coordinates of
+the IB, i.e the means, the log standard deviations and the Fisher-z
+partial correlations. However, `confint()` can map intervals on the
+natural and reporting scales
 
 ``` r
 sqrt(diag(vcov(ib)))
@@ -251,16 +271,16 @@ confint(ib, SCALE = "reporting")
 #> rho_xi_gamma  -0.3247663 0.8593216
 ```
 
-Visual diagnostics
+## Visual diagnostics
 
 ``` r
 plot(ib, WHICH="path")
 ```
 
-<img src="man/figures/README-unnamed-chunk-5-1.png" alt="" width="100%" />
+<img src="man/figures/README-unnamed-chunk-6-1.png" alt="" width="100%" />
 
 ``` r
 plot(ib, WHICH="convergence")
 ```
 
-<img src="man/figures/README-unnamed-chunk-5-2.png" alt="" width="100%" />
+<img src="man/figures/README-unnamed-chunk-6-2.png" alt="" width="100%" />

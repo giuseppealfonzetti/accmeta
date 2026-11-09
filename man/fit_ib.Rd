@@ -34,8 +34,10 @@ the caller's random number generator.}
 Object of class \code{accmeta_ib}, a list with \code{THETA} (numeric, length 9
 or 5), \code{PI_HAT} (numeric, auxiliary estimate), \code{N_ITER} (integer),
 \code{CONVERGED} (logical), \code{STOP} (\code{"converged"}, \code{"stall"}, \code{"boundary"}
-or \code{"maxit"}), \code{RESIDUAL} (numeric), \code{PROGRESS}, \code{THRESHOLD}, \code{FAIL},
-\code{DEGEN}, \code{RATIO} (numeric vectors, one entry per iteration), \code{PATH}, \code{GAP},
+or \code{"maxit"}), \code{RESIDUAL} (numeric, squared Mahalanobis norm of the gap at
+the best iterate), \code{PROGRESS} (numeric vector, the same norm at each
+iteration), \code{THRESHOLD}, \code{FAIL}, \code{DEGEN}, \code{RATIO} (numeric vectors, one
+entry per iteration), \code{PATH}, \code{GAP},
 \code{SE} (numeric matrices, one row per iteration), \code{SEEDS}, \code{PRIOR}, \code{CONTROL},
 \code{WORKPAR}, \code{DATA}, \code{MODEL}, \code{ESTIMATOR}, and \code{JACOBIAN} (list) when
 \code{VCOV = TRUE}.

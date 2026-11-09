@@ -110,6 +110,12 @@ min(eigen(coef(tglmm)$SIGMA)$values)
 
 ## Inference for the IB estimate
 
+A `summary()` call on a fitted object warns about interval inference not being available because of the Jacobian has not been computed yet.
+
+```{r}
+summary(ib)
+```
+
 With `VCOV = TRUE` in `fit_meta_model()`, the IB also computes the Jacobian at the estimate.  `NCORES` spreads both the
 simulated fits of each iteration and the Jacobian draws for parallel computations
 ```{r ib-vcov}
@@ -123,7 +129,7 @@ ib <- fit_meta_model(
 ```
 
 `update(ib, VCOV = TRUE)` adds the Jacobian to an existing fit, using the fit's `CONTROL`.
-`vcov()` and `confint()` work in the working coordinates of the IB, i.e the means, the log standard deviations and the Fisher-z partial correlations.
+`vcov()` is computed on the working coordinates of the IB, i.e the means, the log standard deviations and the Fisher-z partial correlations. However, `confint()` can map intervals on the natural and reporting scales
 
 ```{r ib-ci}
 sqrt(diag(vcov(ib)))
@@ -143,7 +149,8 @@ Intervals mapped onto the reporting scale via
 confint(ib, SCALE = "reporting")
 ```
 
-Visual diagnostics
+
+## Visual diagnostics
 
 ```{r}
 plot(ib, WHICH="path")
